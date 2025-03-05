@@ -3,28 +3,28 @@
 #
 # low performance database
 #
-MYSQL_HOST=
+MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3306
-MYSQL_USER=
-MYSQL_PASS=
-MYSQL_DB=
+MYSQL_USER=root
+MYSQL_PASS=789456
+MYSQL_DB=stockml
 
 #
 ################## Exchange Database
 # Storage of exhcange datas / high performance database
 #
-MYSQL_HOST_EXCHANGE=
+MYSQL_HOST_EXCHANGE=127.0.0.1
 MYSQL_PORT_EXCHANGE=3306
-MYSQL_USER_EXCHANGE=
-MYSQL_PASS_EXCHANGE=
-MYSQL_DB_EXCHANGE=
+MYSQL_USER_EXCHANGE=root
+MYSQL_PASS_EXCHANGE=789456
+MYSQL_DB_EXCHANGE=stockml_exchange
 
 
 #
 ################## Redis Database
 # Redis can be used to increase reliability and reduce latency between services
 #
-REDIS_HOST = 
+REDIS_HOST = 127.0.0.1
 REDIS_PORT = 6379
 REDIS_AUTH = 
 REDIS_DB_ID = 0
@@ -56,7 +56,7 @@ Warden = 1
 ################## Exchanges
 #
 # List of supportable exchanges with "," separated, read CCTX for supported exhcange list 
-exchangeList = binance,kucoin
+exchangeList = binance
 
 #
 ################# Warden settings
@@ -66,7 +66,7 @@ exchangeList = binance,kucoin
 # quotes = BTC,ETH,USDT,BNB
 # quoteLimits = 3,1,1,1
 #
-wardenExchangesList = binance,kucoin
+wardenExchangesList = binance
 quotes = BTC,ETH,USDT,BNB
 quoteLimits = 3,1,1,1
 
