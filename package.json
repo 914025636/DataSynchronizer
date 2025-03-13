@@ -32,7 +32,7 @@
   "dependencies": {
     "binance-api-node": "^0.9.15",
     "candlestick-convert": "^5.0.0",
-    "ccxt": "^1.22.39",
+    "ccxt": "^4.4.67",
     "dotenv": "^8.0.0",
     "eventemitter3": "^4.0.0",
     "ioredis": "^4.11.2",
