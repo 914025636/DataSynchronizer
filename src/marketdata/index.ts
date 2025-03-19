@@ -103,8 +103,8 @@ class MarketDataClass {
           e.exchange,
           JSON.stringify(e.limits),
           JSON.stringify(e.precision),
-          e.tierBased,
-          e.percentage,
+          e.tierBased ,
+          e.percentage ,
           e.taker,
           e.maker,
           e.id,
@@ -113,15 +113,17 @@ class MarketDataClass {
           e.quoteId,
           e.base,
           e.quote,
-          e.active,
+          e.active ,
           JSON.stringify(e.info),
         ];
       });
 
-      await BaseDB.query(
-        'REPLACE INTO `market_datas` (`exchange`, `limits`, `precision_data`, `tierBased`, `percentage`, `taker`, `maker`, `id`, `symbol`, `baseId`, `quoteId`, `base`, `quote`, `active`, `info`) VALUES ?',
-        [marketDataValues],
-      );
+      for (const value of marketDataValues) {
+        await BaseDB.query(
+          'REPLACE INTO `market_datas` (`exchange`, `limits`, `precision_data`, `tierBased`, `percentage`, `taker`, `maker`, `id`, `symbol`, `baseId`, `quoteId`, `base`, `quote`, `active`, `info`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          value,
+        );
+      }
 
       return;
     } catch (e) {
