@@ -85,7 +85,7 @@ class Warden {
       const [
         rows,
       ] = await BaseDB.query(
-        'SELECT m.exchange, m.symbol, m.id ,m.baseId,m.quoteId FROM `market_datas` as m JOIN `price_tickers` as p ON m.exchange = p.exchange AND m.symbol = p.symbol WHERE m.active = 1 and m.exchange = ? and m.quoteId = ?  order by p.quoteVolume desc;',
+        'SELECT m.exchange, m.symbol, m.id ,m.baseId,m.quoteId FROM `market_datas` as m JOIN `price_tickers` as p ON m.exchange = p.exchange AND m.symbol = p.symbol WHERE m.active = 1 and m.exchange = ? and m.id = ?  order by p.quoteVolume desc;',
         [exchange, quote],
       );
 

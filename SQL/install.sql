@@ -97,7 +97,7 @@ CREATE TABLE `market_datas` (
   `quote` varchar(255) NOT NULL,
   `active` tinyint(1) NULL DEFAULT '0',
   `info` text NOT NULL,
-  UNIQUE KEY `exchange` (`exchange`,`id`)
+  UNIQUE KEY `exchange` (`exchange`,`symbol`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 /*Table structure for table `price_tickers` */

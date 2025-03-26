@@ -19,12 +19,11 @@ export const openSocket = (symbol: any) => {
     const tradePayload = {
       time: trade.eventTime,
       symbol: trade.symbol,
-      side: trade.maker === true ? 'sell' : 'buy',
+      side: trade.isBuyerMaker === true ? 'sell' : 'buy',
       quantity: trade.quantity,
       price: trade.price,
       tradeId: trade.tradeId,
     };
-
     Emitter.emit('Trades', exchangeName, tradePayload);
   });
 
