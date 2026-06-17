@@ -25,6 +25,8 @@ class OrderbookEmitter {
   constructor() {
     // Event listeners
     logger.verbose('Orderbook Emitter started!');
+    //声明一个string类型的变量
+    let orderbookStr: string = '';
 
     Emitter.on(
       EMITTER_EVENTS.OrderBookUpdate,
@@ -76,6 +78,35 @@ class OrderbookEmitter {
             logger.error('Orderbook loading error', e);
           }
         }
+
+        // const exchanges = Object.keys(OrderBookExchangeCache);
+
+        // for (const exchange of exchanges) {
+        //   const symbols = OrderBookExchangeCache[exchange].getSymbolList();
+
+        //   for (const symbol of symbols) {
+        //     try {
+        //       const orderbook: OrderbookData = { ...OrderBookExchangeCache[exchange].getOrderBook(symbol) };
+        //       // Get CCXT standard symbol
+        //       const ccxtSymbol = await TradepairQueries.idToSymbol(exchange, symbol);
+
+        //       if (ccxtSymbol) {
+        //         const tableName = Utils.orderbookName_frame(exchange, ccxtSymbol);
+
+        //         if (!(await DBQueries.tableCheck(tableName))) {
+        //           await DBQueries.createNewTableFromTemplate(TableTemplates.Orderbook, tableName);
+        //         }
+        //         if (orderbookStr != JSON.stringify(orderbook)) {
+        //           orderbookStr = JSON.stringify(orderbook)
+        //           await DBQueries.orderbookReplace(tableName, { time: Date.now(), orderbook });
+        //         }
+
+        //       }
+        //     } catch (e) {
+        //       logger.error('Orderbook snapshot error', e);
+        //     }
+        //   }
+        // }
       },
     );
 

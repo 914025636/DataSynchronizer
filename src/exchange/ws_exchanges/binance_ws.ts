@@ -17,7 +17,9 @@ const client = new Binance();
 export const openSocket = (symbol: any) => {
   const socketTrades = client.ws.aggTrades(symbol, (trade: any) => {
     const tradePayload = {
-      time: trade.eventTime,
+      //TODO 为了和orderbook保持一致
+      time: Date.now(),
+      // time: trade.eventTime,
       symbol: trade.symbol,
       side: trade.isBuyerMaker === true ? 'sell' : 'buy',
       quantity: trade.quantity,

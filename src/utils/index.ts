@@ -118,6 +118,11 @@ export const Utils = {
 
     return `${exchange}_${cleanSymbol}_orderbook`.toLowerCase();
   },
+  orderbookName_frame: (exchange: string, symbol: string): string => {
+    const cleanSymbol = symbol.replace('/', '').replace('-', '').replace('_', '');
+
+    return `${exchange}_${cleanSymbol}_orderbook_frame`.toLowerCase();
+  },
 
   candlestickName: (exchange: string, symbol: string, interval: string | number): string => {
     const cleanSymbol = symbol.replace('/', '').replace('-', '').replace('_', '');
