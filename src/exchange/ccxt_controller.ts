@@ -1,17 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import _ from 'lodash';
 import * as ccxt from 'ccxt';
 import { logger } from '../logger';
 
 type CcxtInstance = {
   exchangeName: string;
-  api: any;
+  api: ccxt.Exchange;
 };
+
+type ExchangeConstructor = new (config?: Record<string, unknown>) => ccxt.Exchange;
 
 class ExchangeAPI {
   exchanges: CcxtInstance[];
   constructor() {
     this.exchanges = [];
+  }
+
+  private requireCapability(api: ccxt.Exchange, capability: 'fetchTickers' | 'fetchOHLCV'): void {
+    if (!api.has[capability]) {
+      const alternative = capability === 'fetchTickers' ? 'fetchTicker(symbol)' : 'fetchTrades(symbol)';
+      throw new Error(`${api.id} does not support CCXT ${capability}; use ${alternative} instead`);
+    }
   }
 
   async getMarketdata(exchange: string): Promise<any> {
@@ -29,6 +37,7 @@ class ExchangeAPI {
   async getPriceTickers(exchange: string): Promise<any> {
     try {
       const API = this.loadExchangeAPI(exchange);
+      this.requireCapability(API, 'fetchTickers');
 
       const pricetickers = await API.fetchTickers();
 
@@ -47,10 +56,14 @@ class ExchangeAPI {
   ): Promise<Array<[number, number, number, number, number, number]> | undefined> {
     try {
       const API = this.loadExchangeAPI(exchange);
+      this.requireCapability(API, 'fetchOHLCV');
 
       const candledata = await API.fetchOHLCV(symbol, interval, since, limit);
 
-      return candledata;
+      return candledata.filter(
+        (candle): candle is [number, number, number, number, number, number] =>
+          candle.length >= 6 && candle.slice(0, 6).every((value) => typeof value === 'number'),
+      );
 
       /*
       1504541580000, // UTC timestamp in milliseconds, integer
@@ -76,7 +89,7 @@ class ExchangeAPI {
     return false;
   }
 
-  loadExchangeAPI(exchange: string): any {
+  loadExchangeAPI(exchange: string): ccxt.Exchange {
     try {
       const exchangeName = exchange.toLowerCase();
 
@@ -90,14 +103,16 @@ class ExchangeAPI {
       return this.initNewExchanges(exchangeName).api;
     } catch (e) {
       logger.error('CCXT load API error ', e);
+      throw e;
     }
   }
 
-  initNewExchanges(exchange: string): any {
+  initNewExchanges(exchange: string): CcxtInstance {
     const exchangeName = exchange.toLowerCase();
+    const ExchangeClass = ccxt[exchangeName as keyof typeof ccxt] as ExchangeConstructor | undefined;
 
-    if (_.isObject(ccxt[exchangeName])) {
-      const api = new ccxt[exchangeName]();
+    if (typeof ExchangeClass === 'function') {
+      const api = new ExchangeClass({ enableRateLimit: true });
 
       if (!this._isExchangeLoaded(exchange)) {
         this.exchanges.push({ exchangeName, api });

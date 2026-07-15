@@ -113,7 +113,7 @@ goto :RUN_LOOP
 :GET_TIMESTAMP
 :: 将当前时间转为秒数（粗略，用于计算运行时长，不跨日精确）
 for /f "tokens=1-4 delims=:.," %%a in ("%time%") do (
-    set /a _ts=(((1%%a-100)*60)+(1%%b-100))*60+(1%%c-100)
+    set /a "_ts=(((1%%a-100)*60)+(1%%b-100))*60+(1%%c-100)"
 )
 set %1=!_ts!
 goto :eof

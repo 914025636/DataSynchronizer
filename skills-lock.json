@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "skills": {
+    "ccxt-cli": {
+      "source": "ccxt/ccxt",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ccxt-cli/SKILL.md",
+      "computedHash": "7b4376bd92214eadeb2ea6d3b276b796fd67fed98709393e0e008ea6c396284b"
+    },
+    "ccxt-csharp": {
+      "source": "ccxt/ccxt",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ccxt-csharp/SKILL.md",
+      "computedHash": "b3b894ff2ecfc96e998efcc98534d9e497232f2ae3b58cc4bf1a5529a384e426"
+    },
+    "ccxt-go": {
+      "source": "ccxt/ccxt",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ccxt-go/SKILL.md",
+      "computedHash": "b6683ea0577fa07702f254e2416b7c3eb6846dee8362a558a2f0a41433f64cc8"
+    },
+    "ccxt-java": {
+      "source": "ccxt/ccxt",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ccxt-java/SKILL.md",
+      "computedHash": "db8572422eb4f1872b162568cc037a7bcad09a56fd2753de70a4c974f5fb003a"
+    },
+    "ccxt-php": {
+      "source": "ccxt/ccxt",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ccxt-php/SKILL.md",
+      "computedHash": "20f7af6118fbd03798f54421dd821584e9dc30af2c1a4ef281bc631a58440a7d"
+    },
+    "ccxt-python": {
+      "source": "ccxt/ccxt",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ccxt-python/SKILL.md",
+      "computedHash": "a8a6de9749e25c87cf3298f4c020728e761c632dcc32a6b475b4b96d039a19c9"
+    },
+    "ccxt-typescript": {
+      "source": "ccxt/ccxt",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ccxt-typescript/SKILL.md",
+      "computedHash": "543a94ebcc93c6b6a0c100b1826fd4a5fc9504cf14326cbb0abf8dc9a43fe07b"
+    },
+    "new-exchange": {
+      "source": "ccxt/ccxt",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/new-exchange/SKILL.md",
+      "computedHash": "2a1eaf3906d9cd83440d56cadd410a233fe670b03614cfb161fec7238bec32ff"
+    }
+  }
+}
