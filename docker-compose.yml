@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  questdb:
+    image: questdb/questdb:latest
+    container_name: questdb
+    ports:
+      - '9000:9000'   # HTTP REST API + ILP over HTTP
+      - '9009:9009'   # InfluxDB Line Protocol (TCP)
+      - '8812:8812'   # PostgreSQL wire protocol
+    volumes:
+      - questdb_data:/var/lib/questdb
+    environment:
+      - QDB_TELEMETRY_ENABLED=false
+    restart: unless-stopped
+
+volumes:
+  questdb_data:

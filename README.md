@@ -14,11 +14,19 @@ DataSynchronizer is a powerful NodeJS written Cryptocurrency exchange / Sentimen
 - Auto convert MarketLvl2 datas (trades) into Candlesticks 1m
 - Moderated fault tolerance, only auto-reconnecting Websockets are used.
 
-**Supported exchanges:**
+**Supported data feeds:**
 
-- **Binance:** Candlestick, Trades, Orderbook Snapshots
-- **Kucoin:** Trades, Orderbook Snapshots (Candlesticks can be calculated)
-- **Other exchanges:** CCXT support for PriceTickers and MarketDatas
+- **Binance:** Spot and USDT perpetual market data, tickers, trades, and order books
+- **OKX:** Spot and USDT perpetual market data, tickers, trades, and order books
+- **Bybit:** Spot and USDT perpetual market data, tickers, trades, and order books
+- **Coinbase:** Spot market data, tickers, trades, and order books
+
+Configure exact CCXT unified symbols with the `exchange-symbol` format:
+
+```dotenv
+exchangeMarketTypes=binance:spot|swap,okx:spot|swap,bybit:spot|swap,coinbase:spot
+watchPairs=binance-BTC/USDT,okx-ETH/USDT,bybit-BTC/USDT:USDT,coinbase-BTC/USD
+```
 
 **Supported Sentiment sources:**
 

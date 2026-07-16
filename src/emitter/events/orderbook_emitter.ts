@@ -9,6 +9,7 @@ import { TradepairQueries } from '../../tradepairs/tradepairs';
 import { DBQueries } from '../../database/queries';
 import { Redis, RedisPub } from '../../redis/redis';
 import { TableTemplates } from '../../database/queries/enums';
+import { QuestDBWriter } from '../../questdb';
 
 const memoryLimit =
   process.env.ORDERBOOK_SIZE_LIMIT === undefined ? 1024 : parseInt(process.env.ORDERBOOK_SIZE_LIMIT, 10);
@@ -19,14 +20,15 @@ interface OrderBookDepth {
   symbol: string;
   asks: Order[];
   bids: Order[];
+  timestamp?: number;
+  sequence?: number;
+  updateType: 'snapshot' | 'delta';
 }
 
 class OrderbookEmitter {
   constructor() {
     // Event listeners
     logger.verbose('Orderbook Emitter started!');
-    //声明一个string类型的变量
-    let orderbookStr: string = '';
 
     Emitter.on(
       EMITTER_EVENTS.OrderBookUpdate,
@@ -34,19 +36,39 @@ class OrderbookEmitter {
         // eslint-disable-next-line no-param-reassign
         exchange = exchange.toLowerCase();
 
-        if (!OrderBookExchangeCache[exchange]) {
-          OrderBookExchangeCache[exchange] = new OrderBookStore(memoryLimit);
+        let exchangeOrderbooks = OrderBookExchangeCache.get(exchange);
+
+        if (!exchangeOrderbooks) {
+          exchangeOrderbooks = new OrderBookStore(memoryLimit);
+          OrderBookExchangeCache.set(exchange, exchangeOrderbooks);
         }
 
         const { symbol, asks, bids } = depth;
 
-        if ((OrderBookExchangeCache[exchange] as OrderBookStore).hasOrderBook(symbol)) {
+        // 写入 QuestDB 增量数据（每条 WebSocket 推送的价格档位变化）
+        TradepairQueries.idToSymbol(exchange, symbol)
+          .then((ccxtSymbol) => {
+            if (ccxtSymbol) {
+              return QuestDBWriter.writeOrderbookDelta(
+                exchange,
+                ccxtSymbol,
+                asks as [number, number][],
+                bids as [number, number][],
+                depth.timestamp || Date.now(),
+                depth.sequence,
+                depth.updateType,
+              );
+            }
+          })
+          .catch((e) => logger.error('QuestDB orderbook delta write error', e));
+
+        if (exchangeOrderbooks.hasOrderBook(symbol)) {
           try {
-            OrderBookExchangeCache[exchange].updateOrderBook(symbol, asks, bids);
+            exchangeOrderbooks.updateOrderBook(symbol, asks, bids);
 
-            const orderBookData: OrderbookData = { ...OrderBookExchangeCache[exchange].getOrderBook(symbol) };
+            const orderBookData = exchangeOrderbooks.getOrderBook(symbol);
 
-            if (orderBookData.asks[0]?.[0] && orderBookData.bids[0]?.[0]) {
+            if (orderBookData && orderBookData.asks[0]?.[0] && orderBookData.bids[0]?.[0]) {
               // Publish best Ask and Bid price
               await RedisPub.publish(
                 'OrderBookUpdate',
@@ -66,14 +88,10 @@ class OrderbookEmitter {
               const parsedOrderbookSnapshot: OrderbookData = JSON.parse(orderbookSnapshot);
 
               if (parsedOrderbookSnapshot.asks && parsedOrderbookSnapshot.bids) {
-                OrderBookExchangeCache[exchange].updateOrderBook(
-                  symbol,
-                  parsedOrderbookSnapshot.asks,
-                  parsedOrderbookSnapshot.bids,
-                );
+                exchangeOrderbooks.updateOrderBook(symbol, parsedOrderbookSnapshot.asks, parsedOrderbookSnapshot.bids);
               }
             }
-            OrderBookExchangeCache[exchange].updateOrderBook(symbol, asks, bids);
+            exchangeOrderbooks.updateOrderBook(symbol, asks, bids);
           } catch (e) {
             logger.error('Orderbook loading error', e);
           }
@@ -113,14 +131,17 @@ class OrderbookEmitter {
     Emitter.on(
       EMITTER_EVENTS.OrderBookSnapshot,
       async (snapshotTime: number): Promise<void> => {
-        const exchanges = Object.keys(OrderBookExchangeCache);
-
-        for (const exchange of exchanges) {
-          const symbols = OrderBookExchangeCache[exchange].getSymbolList();
+        for (const [exchange, exchangeOrderbooks] of OrderBookExchangeCache) {
+          const symbols = exchangeOrderbooks.getSymbolList();
 
           for (const symbol of symbols) {
             try {
-              const orderbook: OrderbookData = { ...OrderBookExchangeCache[exchange].getOrderBook(symbol) };
+              const orderbook = exchangeOrderbooks.getOrderBook(symbol);
+
+              if (!orderbook) {
+                continue;
+              }
+
               // Get CCXT standard symbol
               const ccxtSymbol = await TradepairQueries.idToSymbol(exchange, symbol);
 

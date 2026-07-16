@@ -16,6 +16,10 @@ export const TradepairQueries = {
 
   idToSymbol: async (exchange: string, id: string): Promise<string | undefined> => {
     try {
+      if (id.includes('/')) {
+        return id;
+      }
+
       const result = idToSymbolCache.find((e) => e.exchange === exchange && e.id === id);
 
       if (typeof result !== 'undefined') {

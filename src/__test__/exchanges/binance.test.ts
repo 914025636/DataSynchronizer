@@ -1,8 +1,8 @@
 import { openSocket } from '../../exchange/ws_exchanges/binance_ws';
 
-describe.only('Binance WS Handler', () => {
+describe('Binance WS Handler', () => {
   let BinanceWS: any = {};
-  const tradepairIDs = ['BTCUSDT', 'ETHBTC'];
+  const tradepairIDs = ['BTC/USDT', 'BTC/USDT:USDT'];
 
   beforeEach(() => {
     BinanceWS = openSocket(tradepairIDs);

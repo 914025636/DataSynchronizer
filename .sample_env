@@ -19,6 +19,12 @@ MYSQL_USER_EXCHANGE=root
 MYSQL_PASS_EXCHANGE=789456
 MYSQL_DB_EXCHANGE=stockml_exchange
 
+#
+################## QuestDB
+#
+QUESTDB_HOST=127.0.0.1
+QUESTDB_PORT=9000
+
 
 #
 ################## Redis Database
@@ -55,20 +61,24 @@ Warden = 1
 #
 ################## Exchanges
 #
-# List of supportable exchanges with "," separated, read CCTX for supported exhcange list 
-exchangeList = binance
+# Optional additional exchanges for market and ticker collection.
+# Exchanges used by watchPairs are loaded automatically.
+# Supported data feeds: binance,okx,bybit,coinbase
+# Coinbase supports spot only.
+exchangeList = binance,okx,bybit,coinbase
+# Market types per exchange. Supported values: spot,swap
+exchangeMarketTypes = binance:spot|swap,okx:spot|swap,bybit:spot|swap,coinbase:spot
 
 #
 ################# Warden settings
 #
-# Auto init tradepairs for data collection based on Volume desc, Quote and Quote limits should be match
+# Auto init exact CCXT unified symbols for data collection
+# Format: exchange-symbol
+# Examples: binance-BTC/USDT, okx-ETH/USDT, bybit-BTC/USDT:USDT, coinbase-BTC/USD
 # Example:
-# quotes = BTC,ETH,USDT,BNB
-# quoteLimits = 3,1,1,1
+# watchPairs = binance-BTC/USDT,okx-ETH/USDT,bybit-BTC/USDT:USDT,coinbase-BTC/USD
 #
-wardenExchangesList = binance
-quotes = BTC,ETH,USDT,BNB
-quoteLimits = 3,1,1,1
+watchPairs = binance-BTC/USDT,okx-ETH/USDT,bybit-BTC/USDT:USDT,coinbase-BTC/USD
 
 
 #

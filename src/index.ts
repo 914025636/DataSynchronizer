@@ -9,7 +9,9 @@ import SentimentAPI from './sentiment/sentiment';
 import LivefeedAPI from './livefeed/livefeed';
 import { MarketDataAPI } from './marketdata';
 import PriceTickersAPI from './pricetickers';
-import WardenClass from './warden';
+import WardenClass, { parseWatchPair } from './warden';
+import { CCXT_API } from './exchange/ccxt_controller';
+import { QuestDBWriter } from './questdb';
 
 // Load Dotenv variables
 const {
@@ -19,19 +21,36 @@ const {
   PriceTicker,
   Warden,
   exchangeList,
-  wardenExchangesList,
-  quotes,
-  quoteLimits,
+  watchPairs,
+  exchangeMarketTypes,
 } = process.env;
 
-const exchanges = exchangeList !== undefined ? exchangeList.split(',') : [];
-const wardenExchanges = wardenExchangesList !== undefined ? wardenExchangesList.split(',') : [];
-const wardenQuotes = quotes !== undefined ? quotes.split(',') : [];
-const wardenQuoteLimits = quoteLimits !== undefined ? quoteLimits.split(',').map((elem) => parseInt(elem)) : [];
+const wardenWatchPairs =
+  watchPairs !== undefined ? watchPairs.split(',').map((elem) => elem.trim()).filter((elem) => elem.length > 0) : [];
+const configuredExchanges = exchangeList !== undefined ? exchangeList.split(',').map((elem) => elem.trim()) : [];
+const watchPairExchanges = wardenWatchPairs.map((value) => parseWatchPair(value).exchange);
+const exchanges = Array.from(new Set(configuredExchanges.concat(watchPairExchanges).filter((elem) => elem.length > 0)));
 // Load Dotenv variables
+
+let shuttingDown = false;
+
+const shutdown = async (signal: string): Promise<void> => {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
+  logger.info(`Received ${signal}, flushing QuestDB data`);
+  await QuestDBWriter.close();
+  process.exit(0);
+};
+
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 async function main(): Promise<void> {
   logger.info('StockML Synchronizer started');
+  CCXT_API.configureMarketTypes(exchangeMarketTypes);
 
   // Available Symbols and Precision informations from exchanges
   if (MarketData && parseInt(MarketData) === 1) {
@@ -50,9 +69,9 @@ async function main(): Promise<void> {
     await LivefeedAPI.start(exchanges);
     require('./workers/index');
   }
-  // Warden Auto init tradepairs for data collection based on Volume desc
+  // Warden initializes the configured exact tradepairs
   if (Warden && parseInt(Warden) === 1) {
-    await WardenClass.start(wardenExchanges, wardenQuotes, wardenQuoteLimits);
+    await WardenClass.start(wardenWatchPairs);
   }
 
   logger.info('Startup finished');

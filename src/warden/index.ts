@@ -6,29 +6,40 @@ import { TradepairQueries } from '../tradepairs/tradepairs';
 
 /* Warden intelligent Symbol following system it help to follow new coins or unfollow in-active ones */
 
+export interface WatchPair {
+  exchange: string;
+  symbol: string;
+}
+
+export const parseWatchPair = (value: string): WatchPair => {
+  const separatorIndex = value.indexOf('-');
+
+  if (separatorIndex <= 0 || separatorIndex === value.length - 1) {
+    throw new Error(`Invalid watch pair "${value}", expected exchange-symbol`);
+  }
+
+  return {
+    exchange: value.slice(0, separatorIndex).trim().toLowerCase(),
+    symbol: value.slice(separatorIndex + 1).trim(),
+  };
+};
+
 class Warden {
   wardenSymbols: string[];
-  exchanges: string[];
-  quotes: string[];
-  quoteLimits: number[];
+  watchPairs: WatchPair[];
 
   constructor() {
     this.wardenSymbols = [];
-    this.exchanges = [];
-    this.quotes = [];
-    this.quoteLimits = [];
+    this.watchPairs = [];
   }
 
-  async start(exchanges: string[], quotes: string[], quoteLimits: number[]): Promise<void> {
+  parseWatchPair(value: string): WatchPair {
+    return parseWatchPair(value);
+  }
+
+  async start(watchPairs: string[]): Promise<void> {
     try {
-      this.exchanges = exchanges;
-
-      if (this.quotes.length !== this.quoteLimits.length) {
-        throw new Error('Quotes and quotes limit are not defined correctly!');
-      }
-
-      this.quotes = quotes;
-      this.quoteLimits = quoteLimits;
+      this.watchPairs = watchPairs.map((value) => this.parseWatchPair(value));
 
       await this.updateLoop();
 
@@ -44,15 +55,8 @@ class Warden {
     try {
       const updatePromises = [];
 
-      for (let i = 0; i < this.exchanges.length; i++) {
-        const exchange = this.exchanges[i];
-
-        for (let j = 0; j < this.quotes.length; j++) {
-          const quote = this.quotes[j];
-          const limit = this.quoteLimits[j];
-
-          updatePromises.push(this.selectSymbols(exchange, quote, limit));
-        }
+      for (const watchPair of this.watchPairs) {
+        updatePromises.push(this.selectSymbols(watchPair.exchange, watchPair.symbol));
       }
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,17 +84,17 @@ class Warden {
   /* Add Warden results into the Tradepairs */
 
   /* Database queries */
-  async selectSymbols(exchange: string, quote: string, limit: number): Promise<RowDataPacket[] | undefined> {
+  async selectSymbols(exchange: string, quote: string): Promise<RowDataPacket[] | undefined> {
     try {
       const [
         rows,
       ] = await BaseDB.query(
-        'SELECT m.exchange, m.symbol, m.id ,m.baseId,m.quoteId FROM `market_datas` as m JOIN `price_tickers` as p ON m.exchange = p.exchange AND m.symbol = p.symbol WHERE m.active = 1 and m.exchange = ? and m.symbol = ?  order by p.quoteVolume desc;',
+        'SELECT m.exchange, m.symbol, m.id ,m.baseId,m.quoteId FROM `market_datas` as m JOIN `price_tickers` as p ON m.exchange = p.exchange AND m.symbol = p.symbol WHERE m.active = 1 and m.exchange = ? and m.symbol = ? LIMIT 1;',
         [exchange, quote],
       );
 
       if ((rows as RowDataPacket[]).length > 0) {
-        return _.take(rows as RowDataPacket[], limit) as RowDataPacket[];
+        return rows as RowDataPacket[];
       }
 
       return [] as RowDataPacket[];

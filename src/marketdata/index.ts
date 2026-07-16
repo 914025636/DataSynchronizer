@@ -58,16 +58,11 @@ class MarketDataClass {
           return { ...elem, ...{ exchange } };
         });
 
-        // TODO: Better matching of stored and new market datas: new pairs etc.
-        if (!marketData) {
-          await this.marketDataReplace(convertedNewMarketData);
-          logger.verbose(`New market data for ${exchange}`);
-          return;
-        }
+        const storedSymbols = marketData ? marketData.map((market) => market.symbol).sort() : [];
+        const newSymbols = convertedNewMarketData.map((market) => market.symbol).sort();
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (convertedNewMarketData.length !== (marketData as any[]).length) {
-          await this.marketDataReplace(convertedNewMarketData);
+        if (!marketData || !_.isEqual(storedSymbols, newSymbols)) {
+          await this.marketDataReplace(exchange, convertedNewMarketData);
           logger.verbose(`New market data for ${exchange}`);
           return;
         }
@@ -94,8 +89,10 @@ class MarketDataClass {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async marketDataReplace(marketData: any[]): Promise<void> {
+  async marketDataReplace(exchange: string, marketData: any[]): Promise<void> {
     try {
+      await BaseDB.query('DELETE FROM `market_datas` WHERE exchange = ?;', [exchange]);
+
       // Stringify JSONs for database storage
       const marketDataValues = marketData.map((e) => {
         // Convert to simple array

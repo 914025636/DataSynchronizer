@@ -1,73 +1,68 @@
-/* eslint-disable @typescript-eslint/explicit-function-return-type */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-var-requires */
-/* eslint-disable @typescript-eslint/camelcase */
-import { Order } from 'orderbook-synchronizer/lib/types';
+import * as ccxt from 'ccxt';
 import { EMITTER_EVENTS } from '../../constants';
 import { Emitter } from '../../emitter/emitter';
+import { logger } from '../../logger';
 
-// Binance things
 const exchangeName = 'binance';
 
-const Binance = require('binance-api-node').default;
+const retryDelay = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 1000));
 
-const client = new Binance();
-// Binance things
+export const openSocket = (symbols: string[]) => {
+  const client = new ccxt.pro.binance({ enableRateLimit: true, newUpdates: true });
+  let closed = false;
 
-export const openSocket = (symbol: any) => {
-  const socketTrades = client.ws.aggTrades(symbol, (trade: any) => {
-    const tradePayload = {
-      //TODO 为了和orderbook保持一致
-      time: Date.now(),
-      // time: trade.eventTime,
-      symbol: trade.symbol,
-      side: trade.isBuyerMaker === true ? 'sell' : 'buy',
-      quantity: trade.quantity,
-      price: trade.price,
-      tradeId: trade.tradeId,
-    };
-    Emitter.emit('Trades', exchangeName, tradePayload);
-  });
+  const watchTrades = async (symbol: string): Promise<void> => {
+    while (!closed) {
+      try {
+        const trades = await client.watchTrades(symbol);
 
-  const socketOrderbook = client.ws.depth(symbol, (depth: any) => {
-    /*
-      {
-        eventType: 'depthUpdate',
-        eventTime: 1564411435348,
-        symbol: 'BTCUSDT',
-        firstUpdateId: 905213181,
-        finalUpdateId: 905213198,
-        bidDepth: [
-          { price: '9558.02000000', quantity: '0.11576700' },
-          { price: '9552.36000000', quantity: '0.00000000' }
-        ],
-        askDepth: [
-          { price: '9558.98000000', quantity: '0.00100800' },
-          { price: '9566.05000000', quantity: '0.00000000' },
-        ]
+        trades.forEach((trade) => {
+          Emitter.emit('Trades', exchangeName, {
+            time: trade.timestamp || Date.now(),
+            symbol: trade.symbol,
+            side: trade.side,
+            quantity: trade.amount,
+            price: trade.price,
+            tradeId: trade.id,
+          });
+        });
+      } catch (err) {
+        if (!closed) {
+          logger.error(`Binance trades websocket error for ${symbol}`, err);
+          await retryDelay();
+        }
       }
-    */
-    const asks: Order[] = depth.askDepth.map((elem: any) => {
-      return [elem.price, elem.quantity];
-    });
-    const bids: Order[] = depth.bidDepth.map((elem: any) => {
-      return [elem.price, elem.quantity];
-    });
+    }
+  };
 
-    const updateDepth = { symbol: depth.symbol, asks, bids };
+  const watchOrderBook = async (symbol: string): Promise<void> => {
+    while (!closed) {
+      try {
+        const orderbook = await client.watchOrderBook(symbol);
+        Emitter.emit(EMITTER_EVENTS.OrderBookUpdate, exchangeName, {
+          symbol,
+          asks: orderbook.asks.map((order) => [order[0], order[1]]),
+          bids: orderbook.bids.map((order) => [order[0], order[1]]),
+          snapshot: true,
+        });
+      } catch (err) {
+        if (!closed) {
+          logger.error(`Binance orderbook websocket error for ${symbol}`, err);
+          await retryDelay();
+        }
+      }
+    }
+  };
 
-    Emitter.emit(EMITTER_EVENTS.OrderBookUpdate, exchangeName, updateDepth);
+  symbols.forEach((symbol) => {
+    watchTrades(symbol);
+    watchOrderBook(symbol);
   });
 
-  // Needed to close connection
   return (): boolean => {
-    try {
-      socketTrades();
-      socketOrderbook();
-    } catch (err) {
-      return err;
-    }
-
+    closed = true;
+    client.close().catch((err: any) => logger.error('Binance websocket close error', err));
     return true;
   };
 };

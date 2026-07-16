@@ -4,15 +4,7 @@ import { logger } from '../logger';
 
 import { TradepairQueries } from '../tradepairs/tradepairs';
 
-import { openSocket as binanceWS } from '../exchange/ws_exchanges/binance_ws';
-import { openSocket as kucoinWS } from '../exchange/ws_exchanges/kucoin_ws';
-
-// Exchange Websockets
-const ExchangeWS = {
-  binance: binanceWS,
-  kucoin: kucoinWS,
-};
-// Exchange Websockets
+import { openSocket } from '../exchange/ws_exchanges/ccxt_ws';
 
 const watcherTimeout = 5 * 60 * 1000; // 5 minute
 
@@ -48,9 +40,9 @@ class LivefeedAPI {
         throw new Error('LiveFeed Tradepairs are empty');
       }
 
-      const newSymbols = tradepairs.map((elem) => elem.symbol);
+      const newSymbols = tradepairs.map((elem) => `${elem.exchange}:${elem.symbol}`);
 
-      const oldSymbols = this.tradepairs.map((elem) => elem.symbol);
+      const oldSymbols = this.tradepairs.map((elem) => `${elem.exchange}:${elem.symbol}`);
 
       // There is no new tradepairs
       if (isEqual(newSymbols, oldSymbols) === true) {
@@ -78,15 +70,17 @@ class LivefeedAPI {
   }
 
   private async openWebsocketCandlestick(exchange: string): Promise<void> {
-    const websocketSymbolIds = [];
+    const websocketSymbols = [];
 
     for (const tradepair of this.tradepairs) {
       if (tradepair.exchange === exchange) {
-        websocketSymbolIds.push(tradepair.id);
+        websocketSymbols.push(tradepair.symbol);
       }
     }
 
-    this.websocketAPI[exchange] = ExchangeWS[exchange](websocketSymbolIds);
+    if (websocketSymbols.length > 0) {
+      this.websocketAPI[exchange] = openSocket(exchange, websocketSymbols);
+    }
   }
 }
 

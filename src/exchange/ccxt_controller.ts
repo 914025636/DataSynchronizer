@@ -7,12 +7,40 @@ type CcxtInstance = {
   api: ccxt.Exchange;
 };
 
+export type MarketType = 'spot' | 'swap';
+
 type ExchangeConstructor = new (config?: Record<string, unknown>) => ccxt.Exchange;
 
 class ExchangeAPI {
   exchanges: CcxtInstance[];
+  marketTypes: Map<string, MarketType[]>;
   constructor() {
     this.exchanges = [];
+    this.marketTypes = new Map();
+  }
+
+  configureMarketTypes(config: string | undefined): void {
+    this.marketTypes.clear();
+
+    if (!config) {
+      return;
+    }
+
+    config.split(',').forEach((entry) => {
+      const [exchange, types = ''] = entry.split(':');
+      const marketTypes = types
+        .split('|')
+        .map((type) => type.trim())
+        .filter((type): type is MarketType => type === 'spot' || type === 'swap');
+
+      if (exchange && marketTypes.length > 0) {
+        this.marketTypes.set(exchange.trim().toLowerCase(), marketTypes);
+      }
+    });
+  }
+
+  getMarketTypes(exchange: string): MarketType[] {
+    return this.marketTypes.get(exchange.toLowerCase()) || ['spot'];
   }
 
   private requireCapability(api: ccxt.Exchange, capability: 'fetchTickers' | 'fetchOHLCV'): void {
@@ -28,7 +56,18 @@ class ExchangeAPI {
 
       const marketdata = await API.loadMarkets();
 
-      return marketdata;
+      const marketTypes = this.getMarketTypes(exchange);
+
+      return Object.entries(marketdata).reduce((markets, [symbol, market]) => {
+        if (
+          market &&
+          marketTypes.some((type) => (type === 'spot' ? market.spot : market.swap && market.linear))
+        ) {
+          markets[symbol] = market;
+        }
+
+        return markets;
+      }, {} as Record<string, ccxt.Market>);
     } catch (e) {
       logger.error('CCXT marketdata error ', e);
     }
@@ -39,9 +78,13 @@ class ExchangeAPI {
       const API = this.loadExchangeAPI(exchange);
       this.requireCapability(API, 'fetchTickers');
 
-      const pricetickers = await API.fetchTickers();
+      const tickerGroups = await Promise.all(
+        this.getMarketTypes(exchange).map((type) =>
+          API.fetchTickers(undefined, type === 'swap' ? { type, subType: 'linear' } : { type }),
+        ),
+      );
 
-      return pricetickers;
+      return Object.assign({}, ...tickerGroups);
     } catch (e) {
       logger.error('CCXT marketdata error ', e);
     }
@@ -113,6 +156,11 @@ class ExchangeAPI {
 
     if (typeof ExchangeClass === 'function') {
       const api = new ExchangeClass({ enableRateLimit: true });
+      const unsupportedMarketTypes = this.getMarketTypes(exchangeName).filter((type) => !api.has[type]);
+
+      if (unsupportedMarketTypes.length > 0) {
+        throw new Error(`${exchangeName} does not support ${unsupportedMarketTypes.join(',')} markets`);
+      }
 
       if (!this._isExchangeLoaded(exchange)) {
         this.exchanges.push({ exchangeName, api });
