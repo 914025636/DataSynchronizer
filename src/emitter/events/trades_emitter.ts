@@ -1,13 +1,8 @@
-import { Utils } from '../../utils';
 import { logger } from '../../logger';
 import { Emitter } from '../emitter';
 
 import { TradepairQueries } from '../../tradepairs/tradepairs';
-import { DBQueries } from '../../database/queries';
-import { TableTemplates } from '../../database/queries/enums';
 import { QuestDBWriter } from '../../questdb';
-
-const tableNameCache: Set<string> = new Set();
 
 class TradesEmitter {
   constructor() {
@@ -32,35 +27,12 @@ class TradesEmitter {
               String(trade.tradeId),
               trade.time,
             ).catch((err: unknown) => logger.error('QuestDB writeTrade error', err));
-
-            const tableName = Utils.tradesName(exchange, ccxtSymbol);
-
-            // Use Set for Table name check cache
-            if (tableNameCache.has(tableName)) {
-              await DBQueries.tradesReplace(tableName, trade);
-              return;
-            }
-
-            await this.createTable(tableName);
           }
         } catch (err) {
           logger.error('Error', err);
         }
       });
     });
-  }
-
-  async createTable(tableName: string): Promise<void> {
-    try {
-      if (await DBQueries.tableCheck(tableName)) {
-        tableNameCache.add(tableName);
-        return;
-      }
-
-      await DBQueries.createNewTableFromTemplate(TableTemplates.Trades, tableName);
-    } catch (err) {
-      logger.error('Error', err);
-    }
   }
 }
 

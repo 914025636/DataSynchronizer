@@ -1,6 +1,6 @@
 import { openSocket } from '../../exchange/ws_exchanges/kucoin_ws';
 
-describe.only('Kucoin WS Handler', () => {
+describe('Kucoin WS Handler', () => {
   let KucoinWS: any = {};
   const tradepairIDs = ['BTCUSDT', 'ETHBTC'];
 

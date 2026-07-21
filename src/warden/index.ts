@@ -59,17 +59,17 @@ class Warden {
         updatePromises.push(this.selectSymbols(watchPair.exchange, watchPair.symbol));
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let results: any[] = await Promise.all(updatePromises);
-
-      results = _.flatten(results);
+      const queryResults = await Promise.all(updatePromises);
+      const results = _.flatten(queryResults.filter((result): result is RowDataPacket[] => Array.isArray(result)));
 
       // Update Tradepairs
       const time = Date.now();
 
-      results.map(async (elem) => {
-        await TradepairQueries.addTradepair(elem.exchange, elem.symbol, elem.id, elem.baseId, elem.quoteId, 1, time);
-      });
+      await Promise.all(
+        results.map((elem) =>
+          TradepairQueries.addTradepair(elem.exchange, elem.symbol, elem.id, elem.baseId, elem.quoteId, 1, time),
+        ),
+      );
 
       return;
     } catch (e) {

@@ -25,6 +25,10 @@ MYSQL_DB_EXCHANGE=stockml_exchange
 QUESTDB_HOST=127.0.0.1
 QUESTDB_PORT=9000
 
+# Optional CCXT proxies for restricted exchange networks
+CCXT_HTTPS_PROXY=
+CCXT_WSS_PROXY=
+
 
 #
 ################## Redis Database

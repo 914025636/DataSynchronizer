@@ -12,16 +12,19 @@ class LivefeedAPI {
   public tradepairs: RowDataPacket[];
   public exchanges: string[];
   public websocketAPI: {};
+  private allowedTradepairs: Set<string>;
 
   constructor() {
     this.tradepairs = [];
     this.exchanges = [];
     this.websocketAPI = {};
+    this.allowedTradepairs = new Set();
   }
 
-  public async start(exchanges: string[]): Promise<void> {
+  public async start(exchanges: string[], allowedTradepairs: string[] = []): Promise<void> {
     try {
       this.exchanges = exchanges;
+      this.allowedTradepairs = new Set(allowedTradepairs);
 
       await this.tradepairsWatcher();
 
@@ -34,11 +37,15 @@ class LivefeedAPI {
   private async tradepairsWatcher(): Promise<void> {
     // Looking after new tradepairs!
     try {
-      const tradepairs = await TradepairQueries.selectTradepairsAll();
+      const selectedTradepairs = await TradepairQueries.selectTradepairsAll();
 
-      if (!tradepairs) {
+      if (!selectedTradepairs) {
         throw new Error('LiveFeed Tradepairs are empty');
       }
+      const tradepairs =
+        this.allowedTradepairs.size > 0
+          ? selectedTradepairs.filter((elem) => this.allowedTradepairs.has(`${elem.exchange}:${elem.symbol}`))
+          : selectedTradepairs;
 
       const newSymbols = tradepairs.map((elem) => `${elem.exchange}:${elem.symbol}`);
 
@@ -56,9 +63,11 @@ class LivefeedAPI {
           this.websocketAPI[exchange]();
         }
         // Open Websockets
-        await this.openWebsocketCandlestick(exchange);
+        const opened = await this.openWebsocketCandlestick(exchange);
 
-        logger.info(`Load new websocket for ${exchange}`);
+        if (opened) {
+          logger.info(`Load new websocket for ${exchange}`);
+        }
       }
     } catch (e) {
       logger.error('LiveFeed Tradepairs watcher error ', e);
@@ -69,7 +78,7 @@ class LivefeedAPI {
     }
   }
 
-  private async openWebsocketCandlestick(exchange: string): Promise<void> {
+  private async openWebsocketCandlestick(exchange: string): Promise<boolean> {
     const websocketSymbols = [];
 
     for (const tradepair of this.tradepairs) {
@@ -80,7 +89,10 @@ class LivefeedAPI {
 
     if (websocketSymbols.length > 0) {
       this.websocketAPI[exchange] = openSocket(exchange, websocketSymbols);
+      return true;
     }
+
+    return false;
   }
 }
 

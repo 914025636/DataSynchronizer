@@ -11,6 +11,12 @@ export type MarketType = 'spot' | 'swap';
 
 type ExchangeConstructor = new (config?: Record<string, unknown>) => ccxt.Exchange;
 
+const getProxyConfig = (): Record<string, string> => {
+  const httpsProxy = process.env.CCXT_HTTPS_PROXY?.trim();
+
+  return httpsProxy ? { httpsProxy } : {};
+};
+
 class ExchangeAPI {
   exchanges: CcxtInstance[];
   marketTypes: Map<string, MarketType[]>;
@@ -155,7 +161,7 @@ class ExchangeAPI {
     const ExchangeClass = ccxt[exchangeName as keyof typeof ccxt] as ExchangeConstructor | undefined;
 
     if (typeof ExchangeClass === 'function') {
-      const api = new ExchangeClass({ enableRateLimit: true });
+      const api = new ExchangeClass({ enableRateLimit: true, ...getProxyConfig() });
       const unsupportedMarketTypes = this.getMarketTypes(exchangeName).filter((type) => !api.has[type]);
 
       if (unsupportedMarketTypes.length > 0) {

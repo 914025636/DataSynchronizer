@@ -1,0 +1,174 @@
+2026-07-18T13:08:22.898719Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\import\readme.txt]
+2026-07-18T13:08:22.899962Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\import\trades.parquet]
+2026-07-18T13:08:22.900129Z A server-main QuestDB 9.4.3. Copyright (C) 2014-2026, all rights reserved.
+2026-07-18T13:08:22.900718Z A server-main windows-x86-64 [AVX2,8, 64 bits, 20 processors]
+2026-07-18T13:08:22.917317Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\ai-sparkle-hollow.svg]
+2026-07-18T13:08:22.917804Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\console-configuration.json]
+2026-07-18T13:08:22.918292Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\create-table.svg]
+2026-07-18T13:08:22.918824Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\favicon.ico]
+2026-07-18T13:08:22.919178Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\favicon.svg]
+2026-07-18T13:08:22.920209Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\grid-bg.webp]
+2026-07-18T13:08:22.920586Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\icon-chart.svg]
+2026-07-18T13:08:22.920885Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\icon-compare.svg]
+2026-07-18T13:08:22.921191Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\icon-copy.svg]
+2026-07-18T13:08:22.921489Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\icon-database.svg]
+2026-07-18T13:08:22.921787Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\icon-file.svg]
+2026-07-18T13:08:22.922085Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\icon-line-chart.svg]
+2026-07-18T13:08:22.922470Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\icon-play.svg]
+2026-07-18T13:08:22.922848Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\icon-stop.svg]
+2026-07-18T13:08:22.924215Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\index-B0NErtb0.js]
+2026-07-18T13:08:22.924642Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\line.svg]
+2026-07-18T13:08:22.940749Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\login-background.svg]
+2026-07-18T13:08:22.941796Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\models-group-icon.svg]
+2026-07-18T13:08:22.943462Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\open-sans-v13-latin-300-DFA0ym50.woff]
+2026-07-18T13:08:22.944455Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\open-sans-v13-latin-600-C1Kmc7KT.woff]
+2026-07-18T13:08:22.945207Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\open-sans-v13-latin-700-k6xx1mZI.woff]
+2026-07-18T13:08:22.945799Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\open-sans-v13-latin-regular-BKF8bpuc.woff]
+2026-07-18T13:08:22.946148Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\plugs.svg]
+2026-07-18T13:08:22.946730Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\questdb-logo-3d.png]
+2026-07-18T13:08:22.947140Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\questdb-logotype.svg]
+2026-07-18T13:08:22.947549Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\questdb.svg]
+2026-07-18T13:08:22.961501Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\tiktoken-D_XIXzTZ.js]
+2026-07-18T13:08:22.962573Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\vs\loader.js]
+2026-07-18T13:08:22.963346Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\whoops.svg]
+2026-07-18T13:08:22.963765Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\index.html]
+2026-07-18T13:08:22.965000Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\THIRD_PARTY_LICENSES.txt]
+2026-07-18T13:08:22.965408Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\ai-sparkle.svg]
+2026-07-18T13:08:22.966080Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\index-DhT2UWZo.css]
+2026-07-18T13:08:22.978978Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\index-DLj61pTx.js]
+2026-07-18T13:08:22.980135Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\upload.svg]
+2026-07-18T13:08:22.985841Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\vendor-BHoUroWS.js]
+2026-07-18T13:08:22.989057Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\vs\base\browser\ui\codicons\codicon\codicon.ttf]
+2026-07-18T13:08:22.994257Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\vs\base\worker\workerMain.js]
+2026-07-18T13:08:22.996740Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\vs\editor\editor.main.css]
+2026-07-18T13:08:23.011568Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\public\assets\vs\editor\editor.main.js]
+2026-07-18T13:08:23.013441Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\conf\mime.types]
+2026-07-18T13:08:23.014307Z I server-main extracted [path=D:\Git\DataSynchronizer\qdbroot\conf\server.conf]
+2026-07-18T13:08:23.022166Z A server-main Server config: qdbroot\conf\server.conf
+2026-07-18T13:08:23.066505Z I i.q.c.t.t.InputFormatConfiguration loading input format config [resource=/text_loader.json]
+2026-07-18T13:08:23.113256Z I server-main changing logger timezone [from=`UTC`, to=`Z`]
+2026-07-18T13:08:23.113357Z A server-main OS: Windows 11 10.0, JDK: GraalVM Community 25.0.2
+2026-07-18T13:08:23.113382Z A server-main Config: http.enabled:true, tcp.enabled:true, pg.enabled:true
+2026-07-18T13:08:23.113431Z A server-main  - open database [b295addd-562e-705b-7129-79d574beed6b]
+2026-07-18T13:08:23.114668Z A server-main  - db root: [path=D:\Git\DataSynchronizer\qdbroot\db, magic=0x2b, fs=NTFS] -> SUPPORTED
+2026-07-18T13:08:23.114986Z I server-main  - .checkpoint root: [path=D:\Git\DataSynchronizer\qdbroot\.checkpoint] -> NOT FOUND
+2026-07-18T13:08:23.115076Z I server-main  - snapshot root: [path=D:\Git\DataSynchronizer\qdbroot\snapshot] -> NOT FOUND
+2026-07-18T13:08:23.115650Z A server-main  - sql copy input root: [path=D:\Git\DataSynchronizer\qdbroot\import, magic=0x2b, fs=NTFS] -> SUPPORTED
+2026-07-18T13:08:23.115712Z I server-main  - sql copy input worker root: [path=D:\Git\DataSynchronizer\qdbroot\tmp] -> NOT FOUND
+2026-07-18T13:08:23.118642Z A server-main  - SQL JIT compiler mode: on
+2026-07-18T13:08:23.118714Z A server-main  - configured ram.usage.limit.bytes: 0 (no limit)
+2026-07-18T13:08:23.118721Z A server-main  - configured ram.usage.limit.percent: 90
+2026-07-18T13:08:23.118735Z A server-main  - system RAM: 23.8 GiB
+2026-07-18T13:08:23.119027Z A server-main  - resolved RAM usage limit: 21.4 GiB
+2026-07-18T13:08:23.120950Z A server-main Metrics are disabled, health check endpoint will not consider unhandled errors
+2026-07-18T13:08:23.132904Z A i.q.c.CairoEngine loading functions from io.questdb
+2026-07-18T13:08:23.509685Z A i.q.c.CairoEngine loaded 1083 functions
+2026-07-18T13:08:23.510239Z I i.q.g.FunctionFactoryCache loading functions [test=false]
+2026-07-18T13:08:23.593432Z I i.q.c.m.EngineMigration upgrading database [version=429]
+2026-07-18T13:08:23.594410Z I i.q.c.m.EngineMigration upgraded tables to 429
+2026-07-18T13:08:23.597022Z I i.q.c.TableNameRegistryStore reloading tables file [path=D:\Git\DataSynchronizer\qdbroot\db\tables.d.0, threadId=3]
+2026-07-18T13:08:23.602315Z I i.q.c.TableNameRegistryStore reloading tables file [path=D:\Git\DataSynchronizer\qdbroot\db\tables.d.0, threadId=3]
+2026-07-18T13:08:23.673843Z I i.q.g.e.QueryProgress fin [id=-1, sql=`CREATE TABLE IF NOT EXISTS '_query_trace' (ts TIMESTAMP, query_text VARCHAR, execution_micros LONG, principal VARCHAR) TIMESTAMP(ts) PARTITION BY HOUR TTL 1 DAY BYPASS WAL`, principal=admin, cache=false, jit=true, time=1401900]
+2026-07-18T13:08:23.685385Z I i.q.g.e.QueryProgress exe [id=0, sql=`CREATE TABLE IF NOT EXISTS '_query_trace' (ts TIMESTAMP, query_text VARCHAR, execution_micros LONG, principal VARCHAR) TIMESTAMP(ts) PARTITION BY HOUR TTL 1 DAY BYPASS WAL`, principal=admin, cache=false, jit=false]
+2026-07-18T13:08:23.686927Z I i.q.c.CairoEngine locked [table=_query_trace, thread=3]
+2026-07-18T13:08:23.690560Z I i.q.c.CairoEngine unlocked [table=_query_trace]
+2026-07-18T13:08:23.692220Z I i.q.g.e.QueryProgress fin [id=0, sql=`CREATE TABLE IF NOT EXISTS '_query_trace' (ts TIMESTAMP, query_text VARCHAR, execution_micros LONG, principal VARCHAR) TIMESTAMP(ts) PARTITION BY HOUR TTL 1 DAY BYPASS WAL`, principal=admin, cache=false, jit=true, time=6853900]
+2026-07-18T13:08:23.692336Z I i.q.c.p.WriterPool open [table=_query_trace, thread=3]
+2026-07-18T13:08:23.699644Z I i.q.c.TableWriter open '_query_trace'
+2026-07-18T13:08:23.713451Z I i.q.g.e.QueryProgress fin [id=-1, sql=`CREATE TABLE IF NOT EXISTS "sys.column_versions_purge_log" (ts timestamp, table_name symbol, column_name symbol, table_id int, truncate_version long, columnType int, table_partition_by int, updated_txn long, column_version long, partition_timestamp timestamp, partition_name_txn long,completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=true, time=7500]
+2026-07-18T13:08:23.718511Z I i.q.g.e.QueryProgress exe [id=1, sql=`CREATE TABLE IF NOT EXISTS "sys.column_versions_purge_log" (ts timestamp, table_name symbol, column_name symbol, table_id int, truncate_version long, columnType int, table_partition_by int, updated_txn long, column_version long, partition_timestamp timestamp, partition_name_txn long,completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=false]
+2026-07-18T13:08:23.719735Z I i.q.c.CairoEngine locked [table=sys.column_versions_purge_log, thread=3]
+2026-07-18T13:08:23.726984Z I i.q.c.CairoEngine unlocked [table=sys.column_versions_purge_log]
+2026-07-18T13:08:23.728461Z I i.q.g.e.QueryProgress fin [id=1, sql=`CREATE TABLE IF NOT EXISTS "sys.column_versions_purge_log" (ts timestamp, table_name symbol, column_name symbol, table_id int, truncate_version long, columnType int, table_partition_by int, updated_txn long, column_version long, partition_timestamp timestamp, partition_name_txn long,completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=true, time=9957100]
+2026-07-18T13:08:23.728554Z I i.q.c.p.WriterPool open [table=sys.column_versions_purge_log, thread=3]
+2026-07-18T13:08:23.728661Z I i.q.c.TableWriter open 'sys.column_versions_purge_log'
+2026-07-18T13:08:23.746914Z I i.q.g.e.QueryProgress exe [id=2, sql=`SELECT * FROM "sys.column_versions_purge_log" WHERE completed = null`, principal=admin, cache=false, jit=true]
+2026-07-18T13:08:23.747541Z I i.q.g.e.QueryProgress fin [id=2, sql=`SELECT * FROM "sys.column_versions_purge_log" WHERE completed = null`, principal=admin, cache=false, jit=true, time=626400]
+2026-07-18T13:08:23.762646Z I i.q.g.e.QueryProgress fin [id=-1, sql=`CREATE TABLE IF NOT EXISTS "sys.posting_seal_purge_log" (ts timestamp, table_name symbol, table_id int, column_name symbol, posting_column_name_txn long, seal_txn long, partition_timestamp timestamp, partition_name_txn long, partition_by int, from_table_txn long, to_table_txn long, timestamp_type int, completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=true, time=6800]
+2026-07-18T13:08:23.766515Z I i.q.g.e.QueryProgress exe [id=3, sql=`CREATE TABLE IF NOT EXISTS "sys.posting_seal_purge_log" (ts timestamp, table_name symbol, table_id int, column_name symbol, posting_column_name_txn long, seal_txn long, partition_timestamp timestamp, partition_name_txn long, partition_by int, from_table_txn long, to_table_txn long, timestamp_type int, completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=false]
+2026-07-18T13:08:23.767492Z I i.q.c.CairoEngine locked [table=sys.posting_seal_purge_log, thread=3]
+2026-07-18T13:08:23.773594Z I i.q.c.CairoEngine unlocked [table=sys.posting_seal_purge_log]
+2026-07-18T13:08:23.774167Z I i.q.g.e.QueryProgress fin [id=3, sql=`CREATE TABLE IF NOT EXISTS "sys.posting_seal_purge_log" (ts timestamp, table_name symbol, table_id int, column_name symbol, posting_column_name_txn long, seal_txn long, partition_timestamp timestamp, partition_name_txn long, partition_by int, from_table_txn long, to_table_txn long, timestamp_type int, completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=true, time=7655100]
+2026-07-18T13:08:23.774245Z I i.q.c.p.WriterPool open [table=sys.posting_seal_purge_log, thread=3]
+2026-07-18T13:08:23.774305Z I i.q.c.TableWriter open 'sys.posting_seal_purge_log'
+2026-07-18T13:08:23.780209Z I i.q.g.e.QueryProgress exe [id=4, sql=`SELECT * FROM "sys.posting_seal_purge_log" WHERE completed = null`, principal=admin, cache=false, jit=true]
+2026-07-18T13:08:23.780356Z I i.q.g.e.QueryProgress fin [id=4, sql=`SELECT * FROM "sys.posting_seal_purge_log" WHERE completed = null`, principal=admin, cache=false, jit=true, time=151200]
+2026-07-18T13:08:23.793562Z I i.q.g.e.QueryProgress fin [id=-1, sql=`CREATE TABLE IF NOT EXISTS "sys.text_import_log" (ts timestamp, id varchar, table_name symbol, file symbol, phase symbol, status symbol, message varchar,rows_handled long,rows_imported long,errors long) timestamp(ts) partition by DAY BYPASS WAL`, principal=admin, cache=false, jit=true, time=5700]
+2026-07-18T13:08:23.793954Z I i.q.g.e.QueryProgress exe [id=5, sql=`CREATE TABLE IF NOT EXISTS "sys.text_import_log" (ts timestamp, id varchar, table_name symbol, file symbol, phase symbol, status symbol, message varchar,rows_handled long,rows_imported long,errors long) timestamp(ts) partition by DAY BYPASS WAL`, principal=admin, cache=false, jit=false]
+2026-07-18T13:08:23.794581Z I i.q.c.CairoEngine locked [table=sys.text_import_log, thread=3]
+2026-07-18T13:08:23.802091Z I i.q.c.CairoEngine unlocked [table=sys.text_import_log]
+2026-07-18T13:08:23.802881Z I i.q.g.e.QueryProgress fin [id=5, sql=`CREATE TABLE IF NOT EXISTS "sys.text_import_log" (ts timestamp, id varchar, table_name symbol, file symbol, phase symbol, status symbol, message varchar,rows_handled long,rows_imported long,errors long) timestamp(ts) partition by DAY BYPASS WAL`, principal=admin, cache=false, jit=true, time=8928300]
+2026-07-18T13:08:23.802939Z I i.q.c.p.WriterPool open [table=sys.text_import_log, thread=3]
+2026-07-18T13:08:23.803186Z I i.q.c.TableWriter open 'sys.text_import_log'
+2026-07-18T13:08:23.807082Z I i.q.WorkerPoolManager custom thread pool [name=export, requester=export, workers=2, priority=5]
+2026-07-18T13:08:23.811100Z I i.q.c.CairoEngine locked [table=sys.telemetry_wal, thread=3]
+2026-07-18T13:08:23.814037Z I i.q.c.CairoEngine unlocked [table=sys.telemetry_wal]
+2026-07-18T13:08:23.814417Z I i.q.c.p.WriterPool open [table=sys.telemetry_wal, thread=3]
+2026-07-18T13:08:23.814474Z I i.q.c.TableWriter open 'sys.telemetry_wal'
+2026-07-18T13:08:23.820512Z I i.q.c.CairoEngine locked [table=sys.telemetry_mat_view, thread=3]
+2026-07-18T13:08:23.823157Z I i.q.c.CairoEngine unlocked [table=sys.telemetry_mat_view]
+2026-07-18T13:08:23.823522Z I i.q.c.p.WriterPool open [table=sys.telemetry_mat_view, thread=3]
+2026-07-18T13:08:23.823569Z I i.q.c.TableWriter open 'sys.telemetry_mat_view'
+2026-07-18T13:08:23.825203Z I i.q.c.CairoEngine locked [table=telemetry, thread=3]
+2026-07-18T13:08:23.827846Z I i.q.c.CairoEngine unlocked [table=telemetry]
+2026-07-18T13:08:23.828227Z I i.q.c.p.WriterPool open [table=telemetry, thread=3]
+2026-07-18T13:08:23.828281Z I i.q.c.TableWriter open 'telemetry'
+2026-07-18T13:08:23.830126Z I i.q.c.TableWriter switched partition [path=\telemetry\2026-07-18, rowCount=0]
+2026-07-18T13:08:23.833222Z I i.q.c.CairoEngine locked [table=telemetry_config, thread=3]
+2026-07-18T13:08:23.842905Z I i.q.c.CairoEngine unlocked [table=telemetry_config]
+2026-07-18T13:08:23.844839Z I i.q.c.p.WriterPool open [table=telemetry_config, thread=3]
+2026-07-18T13:08:23.844895Z I i.q.c.TableWriter open 'telemetry_config'
+2026-07-18T13:08:23.852027Z I i.q.c.TableWriter switched partition [path=\telemetry_config\default, rowCount=0]
+2026-07-18T13:08:23.855575Z I i.q.g.e.QueryProgress exe [id=10, sql=`telemetry_config LIMIT -1`, principal=admin, cache=false, jit=false]
+2026-07-18T13:08:23.855785Z I i.q.TelemetryConfigLogger new instance [id=0x0656e25e3c0e7018c364401a8ad4d8, enabled=true]
+2026-07-18T13:08:23.856253Z I i.q.g.e.QueryProgress fin [id=10, sql=`telemetry_config LIMIT -1`, principal=admin, cache=false, jit=true, time=681400]
+2026-07-18T13:08:23.862783Z I i.q.WorkerPoolManager custom thread pool [name=mat-view-refresh, requester=mat-view-refresh, workers=3, priority=5]
+2026-07-18T13:08:23.869390Z I i.q.WorkerPoolManager custom thread pool [name=view-compiler, requester=view-compiler, workers=2, priority=5]
+2026-07-18T13:08:23.869838Z I i.q.WorkerPoolManager custom thread pool [name=wal-apply, requester=wal-apply, workers=3, priority=5]
+2026-07-18T13:08:23.873155Z I i.q.WorkerPoolManager default thread pool [requester=http, workers=19, pool=shared-network]
+2026-07-18T13:08:23.877959Z A http-server listening on 0.0.0.0:9000 [fd=9554154750241 backlog=256]
+2026-07-18T13:08:23.893645Z I i.q.WorkerPoolManager custom thread pool [name=minhttp, requester=min-http, workers=1, priority=8]
+2026-07-18T13:08:23.894791Z I i.q.WorkerPoolManager default thread pool [requester=pg-wire, workers=19, pool=shared-network]
+2026-07-18T13:08:23.896725Z A pg-server listening on 0.0.0.0:8812 [fd=9588514488611 backlog=64]
+2026-07-18T13:08:23.897560Z I i.q.WorkerPoolManager default thread pool [requester=line-tcp-io, workers=19, pool=shared-network]
+2026-07-18T13:08:23.897584Z I i.q.WorkerPoolManager default thread pool [requester=line-tcp-writer, workers=19, pool=shared-write]
+2026-07-18T13:08:23.898521Z A tcp-line-server listening on 0.0.0.0:9009 [fd=9571334619428 backlog=256]
+2026-07-18T13:08:24.045763Z A server-main server is ready to be started
+2026-07-18T13:08:24.045865Z I i.q.c.MetadataCache metadata hydration started [tables=8]
+2026-07-18T13:08:24.045953Z I i.q.c.v.ViewCompilerJob compiling views
+2026-07-18T13:08:24.046022Z I i.q.c.MetadataCache metadata hydration completed [tables=8]
+2026-07-18T13:08:24.052513Z I i.q.MemoryUsageLogJob memory usage [mem.accounted=624409947, mem.rss.accounted=382134216, mem.non.rss.accounted=242275731, mem.rss.limit=22984265250, rss.physical=1200754688, jvm.heap.used=168398232, jvm.heap.committed=484966400, jvm.heap.max=5676466176, malloc.count=4591, realloc.count=12, free.count=41, tags=[NATIVE_ILP_RSS=318767104, MMAP_INDEX_WRITER=237633536, NATIVE_IMPORT=41955280, NATIVE_LOGGER=12582912, NATIVE_REPL=4718592, MMAP_TABLE_WRITER=3407872, NATIVE_TEXT_PARSER_RSS=2077696, NATIVE_OFFLOAD=1179648, MMAP_DEFAULT=656696, MMAP_TABLE_READER=524408, and 13 more]]
+2026-07-18T13:08:24.054918Z I i.q.c.CairoEngine recent write tracker hydrated [tables=7]
+2026-07-18T13:08:24.063761Z I server-main 
+     ___                  _   ____  ____
+    / _ \ _   _  ___  ___| |_|  _ \| __ )
+   | | | | | | |/ _ \/ __| __| | | |  _ \
+   | |_| | |_| |  __/\__ \ |_| |_| | |_) |
+    \__\_\\__,_|\___||___/\__|____/|____/
+                        www.questdb.io
+
+    Web Console URL                 ILP Client Connection String
+
+    http://172.24.32.1:9000         http::addr=172.24.32.1:9000;
+    http://172.22.240.1:9000        http::addr=172.22.240.1:9000;
+    http://127.0.0.1:9000           http::addr=127.0.0.1:9000;
+    http://172.31.216.40:9000       http::addr=172.31.216.40:9000;
+    http://172.18.0.1:9000          http::addr=172.18.0.1:9000;
+    http://192.168.3.237:9000       http::addr=192.168.3.237:9000;
+
+QuestDB configuration files are in D:\Git\DataSynchronizer\qdbroot\conf
+
+
+2026-07-18T13:08:24.069126Z A server-main data id: b543c08e-b54a-4f75-7d4d-88dabf033785
+2026-07-18T13:08:24.143857Z A server-main enjoy
+2026-07-18T13:08:24.300113Z I http-server connected [ip=127.0.0.1, fd=15704547918139, connCount=1]
+2026-07-18T13:08:24.308026Z I i.q.g.e.QueryProgress exe [id=11, sql=`tables() WHERE table_name = 'trades'`, principal=admin, cache=false, jit=false]
+2026-07-18T13:08:24.309121Z I i.q.g.e.QueryProgress fin [id=11, sql=`tables() WHERE table_name = 'trades'`, principal=admin, cache=false, jit=true, time=1109500]
+2026-07-18T13:08:24.309226Z I i.q.c.h.p.JsonQueryProcessorState [15704547918139] timings [compiler: 3458100, count: 0, execute: 5273700, q=`tables() WHERE table_name = 'trades'`]
+2026-07-18T13:08:24.313971Z I http-server connected [ip=127.0.0.1, fd=15927886217532, connCount=2]
+2026-07-18T13:08:24.314957Z I i.q.g.e.QueryProgress exe [id=12, sql=`tables();`, principal=admin, cache=false, jit=false]
+2026-07-18T13:08:24.315061Z I i.q.g.e.QueryProgress exe [id=13, sql=`information_schema.questdb_columns()`, principal=admin, cache=false, jit=false]
+2026-07-18T13:08:24.315369Z I i.q.g.e.QueryProgress fin [id=13, sql=`information_schema.questdb_columns()`, principal=admin, cache=false, jit=true, time=313500]
+2026-07-18T13:08:24.315404Z I i.q.c.h.p.JsonQueryProcessorState [15927886217532] timings [compiler: 689600, count: 0, execute: 1124400, q=`information_schema.questdb_columns()`]
+2026-07-18T13:08:24.315535Z I i.q.g.e.QueryProgress fin [id=12, sql=`tables();`, principal=admin, cache=false, jit=true, time=586800]
+2026-07-18T13:08:24.315572Z I i.q.c.h.p.JsonQueryProcessorState [15704547918139] timings [compiler: 1128200, count: 0, execute: 1884900, q=`tables();`]

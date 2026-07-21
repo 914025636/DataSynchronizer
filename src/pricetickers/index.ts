@@ -71,8 +71,7 @@ class PriceTickers {
         return elem;
       });
 
-      /* TODO remove tickers with undefined values */
-      priceTickers = priceTickers.filter((elem) => elem.high !== undefined || typeof elem.symbol !== 'string');
+      priceTickers = priceTickers.filter((elem) => typeof elem.symbol === 'string');
 
       if (priceTickers.length > 0) {
         await this.replaceDB(priceTickers);
@@ -86,36 +85,33 @@ class PriceTickers {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async replaceDB(priceTickers: any[]): Promise<void> {
-    // Stringify JSON for database storage
-    priceTickers.forEach(async (e) => {
-      // Convert to simple array [[]]
-      const priceTicker = [
-        [
-          e.exchange,
-          e.symbol || e.info.symbol,
-          e.timestamp,
-          e.high,
-          e.low,
-          e.bid,
-          e.ask,
-          e.last,
-          e.change,
-          e.percentage,
-          e.baseVolume,
-          e.quoteVolume,
-          JSON.stringify(e.info),
-        ],
-      ];
+    const nullable = (value: unknown): unknown => (value === undefined ? null : value);
 
-      try {
-        await BaseDB.query(
-          'REPLACE INTO `price_tickers` (`exchange`, `symbol`, `timestamp`, `high`, `low`, `bid`, `ask`, `last`, `change`, `percentage`, `baseVolume`, `quoteVolume`, `info`) VALUES ?',
-          [priceTicker],
-        );
-      } catch (err) {
-        logger.error(`Reason: ${err.message}, Data: ${priceTicker}`);
-      }
-    });
+    // Stringify JSON for database storage
+    const values = priceTickers.map((e) => [
+      e.exchange,
+      e.symbol || e.info.symbol,
+      e.timestamp,
+      nullable(e.high),
+      nullable(e.low),
+      nullable(e.bid),
+      nullable(e.ask),
+      nullable(e.last),
+      nullable(e.change),
+      nullable(e.percentage),
+      nullable(e.baseVolume),
+      nullable(e.quoteVolume),
+      JSON.stringify(e.info),
+    ]);
+
+    try {
+      await BaseDB.query(
+        'REPLACE INTO `price_tickers` (`exchange`, `symbol`, `timestamp`, `high`, `low`, `bid`, `ask`, `last`, `change`, `percentage`, `baseVolume`, `quoteVolume`, `info`) VALUES ?',
+        [values],
+      );
+    } catch (err) {
+      logger.error('Price ticker batch write failed', err);
+    }
   }
 }
 

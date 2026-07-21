@@ -25,10 +25,14 @@ const {
   exchangeMarketTypes,
 } = process.env;
 
-const wardenWatchPairs =
-  watchPairs !== undefined ? watchPairs.split(',').map((elem) => elem.trim()).filter((elem) => elem.length > 0) : [];
+const wardenWatchPairs = (watchPairs || '')
+  .split(',')
+  .map((elem) => elem.trim())
+  .filter((elem) => elem.length > 0);
 const configuredExchanges = exchangeList !== undefined ? exchangeList.split(',').map((elem) => elem.trim()) : [];
-const watchPairExchanges = wardenWatchPairs.map((value) => parseWatchPair(value).exchange);
+const parsedWatchPairs = wardenWatchPairs.map((value) => parseWatchPair(value));
+const watchPairExchanges = parsedWatchPairs.map((value) => value.exchange);
+const livefeedTradepairs = parsedWatchPairs.map((value) => `${value.exchange}:${value.symbol}`);
 const exchanges = Array.from(new Set(configuredExchanges.concat(watchPairExchanges).filter((elem) => elem.length > 0)));
 // Load Dotenv variables
 
@@ -64,14 +68,13 @@ async function main(): Promise<void> {
   if (Sentiment && parseInt(Sentiment) === 1) {
     await SentimentAPI.start();
   }
-  // Websocket support check exchanges/ws_exchanges for support!
-  if (Livefeed && parseInt(Livefeed) === 1) {
-    await LivefeedAPI.start(exchanges);
-    require('./workers/index');
-  }
-  // Warden initializes the configured exact tradepairs
+  // Warden initializes the configured exact tradepairs before Livefeed subscribes
   if (Warden && parseInt(Warden) === 1) {
     await WardenClass.start(wardenWatchPairs);
+  }
+  // Websocket support check exchanges/ws_exchanges for support!
+  if (Livefeed && parseInt(Livefeed) === 1) {
+    await LivefeedAPI.start(exchanges, livefeedTradepairs);
   }
 
   logger.info('Startup finished');

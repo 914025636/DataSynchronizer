@@ -20,7 +20,7 @@ export enum TableTemplates {
   side varchar(5) DEFAULT NULL,
   quantity double DEFAULT NULL,
   price double DEFAULT NULL,
-  tradeId varchar(30) DEFAULT NULL,
+  tradeId varchar(255) DEFAULT NULL,
   UNIQUE KEY time (time,tradeId)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8;`,
 }

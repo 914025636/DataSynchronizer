@@ -12,10 +12,23 @@ type ProExchange = ccxt.Exchange & {
 };
 
 type ProExchangeConstructor = new (config?: Record<string, unknown>) => ProExchange;
+type CloseSocket = () => boolean;
 
-const retryDelay = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 1000));
+const retryDelay = (attempt = 0): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, Math.min(1000 * 2 ** attempt, 30 * 1000)));
+const websocketIdleTimeout = Number(process.env.CCXT_WEBSOCKET_IDLE_TIMEOUT_MS || 2 * 60 * 1000);
+let marketInitializationQueue = Promise.resolve();
 
-export const openSocket = (exchange: string, symbols: string[]) => {
+const enqueueMarketInitialization = async (operation: () => Promise<unknown>): Promise<void> => {
+  const queuedOperation = marketInitializationQueue.then(operation, operation);
+  marketInitializationQueue = queuedOperation.then(
+    () => undefined,
+    () => undefined,
+  );
+  await queuedOperation;
+};
+
+export const openSocket = (exchange: string, symbols: string[]): CloseSocket => {
   const exchangeName = exchange.toLowerCase();
   const ExchangeClass = ccxt.pro[exchangeName as keyof typeof ccxt.pro] as ProExchangeConstructor | undefined;
 
@@ -23,19 +36,45 @@ export const openSocket = (exchange: string, symbols: string[]) => {
     throw new Error(`${exchangeName} does not support CCXT Pro websocket`);
   }
 
-  const client = new ExchangeClass({ enableRateLimit: true, newUpdates: true });
+  const httpsProxy = process.env.CCXT_HTTPS_PROXY?.trim();
+  const wssProxy = process.env.CCXT_WSS_PROXY?.trim();
+  const client = new ExchangeClass({
+    enableRateLimit: true,
+    newUpdates: true,
+    ...(httpsProxy ? { httpsProxy } : {}),
+    ...(wssProxy ? { wssProxy } : {}),
+  });
 
   if (!client.has.watchTrades || !client.has.watchOrderBook) {
     throw new Error(`${exchangeName} must support CCXT Pro watchTrades and watchOrderBook`);
   }
 
   let closed = false;
+  let lastActivity = Date.now();
+  let loggedFirstTrade = false;
+  let loggedFirstOrderbook = false;
   const orderbooks = new Map<string, OrderbookState>();
+  const idleWatcher = setInterval(() => {
+    const idleTime = Date.now() - lastActivity;
+
+    if (!closed && idleTime >= websocketIdleTimeout) {
+      logger.error(`${exchangeName} websocket idle for ${idleTime}ms; restarting process`);
+      process.exit(1);
+    }
+  }, Math.min(websocketIdleTimeout, 30 * 1000));
 
   const watchTrades = async (symbol: string): Promise<void> => {
+    let retryAttempt = 0;
+
     while (!closed) {
       try {
         const trades = await client.watchTrades(symbol);
+        retryAttempt = 0;
+        lastActivity = Date.now();
+        if (!loggedFirstTrade) {
+          loggedFirstTrade = true;
+          logger.info(`${exchangeName} received first trade update for ${symbol}`);
+        }
 
         trades.forEach((trade) => {
           Emitter.emit('Trades', exchangeName, {
@@ -50,16 +89,25 @@ export const openSocket = (exchange: string, symbols: string[]) => {
       } catch (err) {
         if (!closed) {
           logger.error(`${exchangeName} trades websocket error for ${symbol}`, err);
-          await retryDelay();
+          await retryDelay(retryAttempt);
+          retryAttempt += 1;
         }
       }
     }
   };
 
   const watchOrderBook = async (symbol: string): Promise<void> => {
+    let retryAttempt = 0;
+
     while (!closed) {
       try {
         const orderbook = await client.watchOrderBook(symbol);
+        retryAttempt = 0;
+        lastActivity = Date.now();
+        if (!loggedFirstOrderbook) {
+          loggedFirstOrderbook = true;
+          logger.info(`${exchangeName} received first orderbook update for ${symbol}`);
+        }
         const current = {
           asks: orderbook.asks.map((order) => [Number(order[0]), Number(order[1])]),
           bids: orderbook.bids.map((order) => [Number(order[0]), Number(order[1])]),
@@ -69,34 +117,53 @@ export const openSocket = (exchange: string, symbols: string[]) => {
 
         orderbooks.set(symbol, current);
 
-        if (delta.asks.length === 0 && delta.bids.length === 0) {
-          continue;
+        if (delta.asks.length > 0 || delta.bids.length > 0) {
+          Emitter.emit(EMITTER_EVENTS.OrderBookUpdate, exchangeName, {
+            symbol,
+            asks: delta.asks,
+            bids: delta.bids,
+            timestamp: orderbook.timestamp || Date.now(),
+            sequence: orderbook.nonce,
+            updateType: previous ? 'delta' : 'snapshot',
+          });
         }
-
-        Emitter.emit(EMITTER_EVENTS.OrderBookUpdate, exchangeName, {
-          symbol,
-          asks: delta.asks,
-          bids: delta.bids,
-          timestamp: orderbook.timestamp || Date.now(),
-          sequence: orderbook.nonce,
-          updateType: previous ? 'delta' : 'snapshot',
-        });
       } catch (err) {
         if (!closed) {
           logger.error(`${exchangeName} orderbook websocket error for ${symbol}`, err);
-          await retryDelay();
+          await retryDelay(retryAttempt);
+          retryAttempt += 1;
         }
       }
     }
   };
 
-  symbols.forEach((symbol) => {
-    watchTrades(symbol);
-    watchOrderBook(symbol);
-  });
+  const initialize = async (): Promise<void> => {
+    let retryAttempt = 0;
+
+    while (!closed) {
+      try {
+        await enqueueMarketInitialization(() => client.loadMarkets());
+        symbols.forEach((symbol) => {
+          watchTrades(symbol);
+          watchOrderBook(symbol);
+        });
+        return;
+      } catch (err) {
+        if (!closed) {
+          const delay = Math.min(1000 * 2 ** retryAttempt, 30 * 1000);
+          logger.error(`${exchangeName} websocket initialization error; retrying in ${delay}ms`, err);
+          await retryDelay(retryAttempt);
+          retryAttempt += 1;
+        }
+      }
+    }
+  };
+
+  initialize();
 
   return (): boolean => {
     closed = true;
+    clearInterval(idleWatcher);
     client.close().catch((err: any) => logger.error(`${exchangeName} websocket close error`, err));
     return true;
   };

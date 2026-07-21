@@ -1,0 +1,2 @@
+Reading log configuration from D:\Git\DataSynchronizer\qdbroot\conf\log.conf
+2026-07-18T13:08:23.894144Z A http-min-server listening on 0.0.0.0:9003 [fd=9605694357794 backlog=64]

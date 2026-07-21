@@ -41,6 +41,19 @@ QUESTDB_HOST=localhost
 QUESTDB_PORT=9000
 ```
 
+如果交易所网络需要本地代理，可配置 CCXT 的 HTTP/WSS 代理：
+
+```env
+CCXT_HTTPS_PROXY=http://127.0.0.1:10808
+CCXT_WSS_PROXY=http://127.0.0.1:10808
+```
+
+Windows 本地安装可使用项目脚本启动 QuestDB，无需安装 Windows 服务：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-questdb.ps1
+```
+
 ### 3️⃣ 编译并运行
 
 ```bash

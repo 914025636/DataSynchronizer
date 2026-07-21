@@ -4,11 +4,32 @@ import { logger } from '../logger';
 const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
 const QUESTDB_PORT = process.env.QUESTDB_PORT === undefined ? 9000 : parseInt(process.env.QUESTDB_PORT, 10);
 
-// 使用 ILP over HTTP，auto_flush_rows=500 或每 500ms 自动刷新一次
-const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_PORT};auto_flush_rows=500;auto_flush_interval=500;`;
+const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_PORT};auto_flush=off;`;
+const flushInterval = Number(process.env.QUESTDB_FLUSH_INTERVAL_MS || 500);
 
 let sender: Sender | null = null;
 let initPromise: Promise<Sender> | null = null;
+let writeQueue: Promise<void> = Promise.resolve();
+let closing = false;
+let lastFlushTime = Date.now();
+let loggedFirstTradeWrite = false;
+let loggedFirstOrderbookWrite = false;
+
+function enqueueWrite(write: (activeSender: Sender) => Promise<void>): Promise<void> {
+  const queuedWrite = writeQueue.then(async () => {
+    if (closing) return;
+    const activeSender = await getSender();
+    if (closing) return;
+    await write(activeSender);
+    if (Date.now() - lastFlushTime >= flushInterval) {
+      await activeSender.flush();
+      lastFlushTime = Date.now();
+    }
+  });
+
+  writeQueue = queuedWrite.catch(() => undefined);
+  return queuedWrite;
+}
 
 async function getSender(): Promise<Sender> {
   if (sender) return sender;
@@ -44,15 +65,21 @@ export const QuestDBWriter = {
     timestamp: number,
   ): Promise<void> => {
     try {
-      (await getSender())
-        .table('trades')
-        .symbol('exchange', exchange)
-        .symbol('symbol', symbol)
-        .symbol('side', side)
-        .floatColumn('price', parseFloat(price))
-        .floatColumn('quantity', parseFloat(quantity))
-        .stringColumn('trade_id', tradeId)
-        .at(timestamp, 'ms');
+      await enqueueWrite(async (activeSender) => {
+        await activeSender
+          .table('trades')
+          .symbol('exchange', exchange)
+          .symbol('symbol', symbol)
+          .symbol('side', side)
+          .floatColumn('price', parseFloat(price))
+          .floatColumn('quantity', parseFloat(quantity))
+          .stringColumn('trade_id', tradeId)
+          .at(timestamp, 'ms');
+        if (!loggedFirstTradeWrite) {
+          loggedFirstTradeWrite = true;
+          logger.info('QuestDB completed first trade write');
+        }
+      });
     } catch (e) {
       logger.error('QuestDB writeTrade error', e);
     }
@@ -75,29 +102,36 @@ export const QuestDBWriter = {
     updateType: 'snapshot' | 'delta' = 'delta',
   ): Promise<void> => {
     try {
-      const s = await getSender();
-      for (const [price, qty] of asks) {
-        s.table('orderbook_delta')
-          .symbol('exchange', exchange)
-          .symbol('symbol', symbol)
-          .symbol('side', 'ask')
-          .symbol('update_type', updateType)
-          .floatColumn('price', price)
-          .floatColumn('qty', qty)
-          .floatColumn('sequence', sequence || 0)
-          .at(timestamp, 'ms');
-      }
-      for (const [price, qty] of bids) {
-        s.table('orderbook_delta')
-          .symbol('exchange', exchange)
-          .symbol('symbol', symbol)
-          .symbol('side', 'bid')
-          .symbol('update_type', updateType)
-          .floatColumn('price', price)
-          .floatColumn('qty', qty)
-          .floatColumn('sequence', sequence || 0)
-          .at(timestamp, 'ms');
-      }
+      await enqueueWrite(async (activeSender) => {
+        for (const [price, qty] of asks) {
+          await activeSender
+            .table('orderbook_delta')
+            .symbol('exchange', exchange)
+            .symbol('symbol', symbol)
+            .symbol('side', 'ask')
+            .symbol('update_type', updateType)
+            .floatColumn('price', price)
+            .floatColumn('qty', qty)
+            .floatColumn('sequence', sequence || 0)
+            .at(timestamp, 'ms');
+        }
+        for (const [price, qty] of bids) {
+          await activeSender
+            .table('orderbook_delta')
+            .symbol('exchange', exchange)
+            .symbol('symbol', symbol)
+            .symbol('side', 'bid')
+            .symbol('update_type', updateType)
+            .floatColumn('price', price)
+            .floatColumn('qty', qty)
+            .floatColumn('sequence', sequence || 0)
+            .at(timestamp, 'ms');
+        }
+        if (!loggedFirstOrderbookWrite) {
+          loggedFirstOrderbookWrite = true;
+          logger.info('QuestDB completed first orderbook write');
+        }
+      });
     } catch (e) {
       logger.error('QuestDB writeOrderbookDelta error', e);
     }
@@ -107,6 +141,7 @@ export const QuestDBWriter = {
    * 显式刷新缓冲区（进程退出前调用）
    */
   flush: async (): Promise<void> => {
+    await writeQueue;
     if (sender) {
       try {
         await sender.flush();
@@ -122,6 +157,8 @@ export const QuestDBWriter = {
   close: async (): Promise<void> => {
     if (sender) {
       try {
+        closing = true;
+        await writeQueue;
         await sender.flush();
         await sender.close();
         sender = null;
