@@ -1,10 +1,20 @@
 import { Sender } from '@questdb/nodejs-client';
 import { logger } from '../logger';
 
-const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
-const QUESTDB_PORT = process.env.QUESTDB_PORT === undefined ? 9000 : parseInt(process.env.QUESTDB_PORT, 10);
+const DEFAULT_PORT_BY_PROTOCOL: Record<string, number> = {
+  http: 9000,
+  https: 9000,
+  tcp: 9009,
+  tcps: 9009,
+};
 
-const configStr = `http::addr=${QUESTDB_HOST}:${QUESTDB_PORT};auto_flush=off;`;
+const QUESTDB_PROTOCOL = (process.env.QUESTDB_PROTOCOL || 'tcp').toLowerCase();
+const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
+const QUESTDB_PORT = process.env.QUESTDB_PORT === undefined
+  ? (DEFAULT_PORT_BY_PROTOCOL[QUESTDB_PROTOCOL] || DEFAULT_PORT_BY_PROTOCOL.tcp)
+  : parseInt(process.env.QUESTDB_PORT, 10);
+
+const configStr = `${QUESTDB_PROTOCOL}::addr=${QUESTDB_HOST}:${QUESTDB_PORT};auto_flush=off;`;
 const flushInterval = Number(process.env.QUESTDB_FLUSH_INTERVAL_MS || 500);
 
 let sender: Sender | null = null;
@@ -14,17 +24,108 @@ let closing = false;
 let lastFlushTime = Date.now();
 let loggedFirstTradeWrite = false;
 let loggedFirstOrderbookWrite = false;
+let resetPromise: Promise<void> | null = null;
+
+const errorWindowMs = Number(process.env.QUESTDB_ERROR_WINDOW_MS || 30000);
+
+type ErrorBucket = {
+  windowStart: number;
+  loggedInWindow: boolean;
+  suppressed: number;
+};
+
+const errorBuckets = new Map<string, ErrorBucket>();
+
+function isTransportDisconnected(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /TCP transport is not connected|transport is not connected|EPIPE|ECONNRESET|socket hang up|connection.*closed/i.test(message);
+}
+
+function logRateLimitedError(key: string, message: string, error: unknown): void {
+  const now = Date.now();
+  const current = errorBuckets.get(key);
+
+  if (!current || now - current.windowStart >= errorWindowMs) {
+    if (current && current.suppressed > 0) {
+      logger.error(`${message} (suppressed ${current.suppressed} similar errors in last ${errorWindowMs}ms)`);
+    }
+
+    logger.error(message, error);
+    errorBuckets.set(key, {
+      windowStart: now,
+      loggedInWindow: true,
+      suppressed: 0,
+    });
+    return;
+  }
+
+  if (!current.loggedInWindow) {
+    logger.error(message, error);
+    current.loggedInWindow = true;
+    return;
+  }
+
+  current.suppressed += 1;
+}
+
+async function resetSender(reason: string): Promise<void> {
+  if (resetPromise) {
+    await resetPromise;
+    return;
+  }
+
+  resetPromise = (async () => {
+    const staleSender = sender;
+    sender = null;
+    initPromise = null;
+
+    if (staleSender) {
+      try {
+        await staleSender.close();
+      } catch {
+        // Ignore close errors on stale connection.
+      }
+    }
+
+    logger.warn(`QuestDB sender reset: ${reason}`);
+  })();
+
+  try {
+    await resetPromise;
+  } finally {
+    resetPromise = null;
+  }
+}
+
+async function writeWithReconnect(write: (activeSender: Sender) => Promise<void>): Promise<void> {
+  let retried = false;
+
+  while (!closing) {
+    const activeSender = await getSender();
+
+    try {
+      await write(activeSender);
+      if (Date.now() - lastFlushTime >= flushInterval) {
+        await activeSender.flush();
+        lastFlushTime = Date.now();
+      }
+      return;
+    } catch (error) {
+      if (!retried && isTransportDisconnected(error) && !closing) {
+        retried = true;
+        logRateLimitedError('questdb-transport-disconnected', 'QuestDB transport disconnected, resetting sender and retrying write', error);
+        await resetSender('transport disconnected');
+        continue;
+      }
+      throw error;
+    }
+  }
+}
 
 function enqueueWrite(write: (activeSender: Sender) => Promise<void>): Promise<void> {
   const queuedWrite = writeQueue.then(async () => {
     if (closing) return;
-    const activeSender = await getSender();
-    if (closing) return;
-    await write(activeSender);
-    if (Date.now() - lastFlushTime >= flushInterval) {
-      await activeSender.flush();
-      lastFlushTime = Date.now();
-    }
+    await writeWithReconnect(write);
   });
 
   writeQueue = queuedWrite.catch(() => undefined);
@@ -35,9 +136,10 @@ async function getSender(): Promise<Sender> {
   if (sender) return sender;
   if (!initPromise) {
     initPromise = Sender.fromConfig(configStr)
-      .then((s) => {
+      .then(async (s) => {
+        await s.connect();
         sender = s;
-        logger.info(`QuestDB sender initialized: ${QUESTDB_HOST}:${QUESTDB_PORT}`);
+        logger.info(`QuestDB sender initialized: ${QUESTDB_PROTOCOL}://${QUESTDB_HOST}:${QUESTDB_PORT}`);
         return s;
       })
       .catch((error) => {
@@ -81,7 +183,7 @@ export const QuestDBWriter = {
         }
       });
     } catch (e) {
-      logger.error('QuestDB writeTrade error', e);
+      logRateLimitedError('questdb-write-trade', 'QuestDB writeTrade error', e);
     }
   },
 
@@ -133,7 +235,7 @@ export const QuestDBWriter = {
         }
       });
     } catch (e) {
-      logger.error('QuestDB writeOrderbookDelta error', e);
+      logRateLimitedError('questdb-write-orderbook', 'QuestDB writeOrderbookDelta error', e);
     }
   },
 
@@ -146,7 +248,7 @@ export const QuestDBWriter = {
       try {
         await sender.flush();
       } catch (e) {
-        logger.error('QuestDB flush error', e);
+        logRateLimitedError('questdb-flush', 'QuestDB flush error', e);
       }
     }
   },
@@ -159,13 +261,14 @@ export const QuestDBWriter = {
       try {
         closing = true;
         await writeQueue;
-        await sender.flush();
-        await sender.close();
+        const current = sender;
+        await current.flush();
+        await current.close();
         sender = null;
         initPromise = null;
         logger.info('QuestDB sender closed');
       } catch (e) {
-        logger.error('QuestDB close error', e);
+        logRateLimitedError('questdb-close', 'QuestDB close error', e);
       }
     }
   },

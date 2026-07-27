@@ -23,7 +23,8 @@ MYSQL_DB_EXCHANGE=stockml_exchange
 ################## QuestDB
 #
 QUESTDB_HOST=127.0.0.1
-QUESTDB_PORT=9000
+QUESTDB_PROTOCOL=tcp
+QUESTDB_PORT=9009
 
 # Optional CCXT proxies for restricted exchange networks
 CCXT_HTTPS_PROXY=

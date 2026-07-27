@@ -72,12 +72,11 @@
 		{
 			"label": "准备 Grafana 服务",
 			"type": "process",
-			"command": "docker",
+			"command": "powershell.exe",
 			"args": [
-				"compose",
-				"up",
-				"-d",
-				"grafana"
+				"-NoProfile",
+				"-Command",
+				"$status = (docker desktop status 2>$null | Out-String); if ($status -notmatch 'running') { docker desktop start | Out-Host }; for ($i = 0; $i -lt 30; $i++) { $status = (docker desktop status 2>$null | Out-String); if ($status -match 'running') { break }; Start-Sleep -Seconds 2 }; if ($status -notmatch 'running') { throw 'Docker Desktop 未启动完成，请稍后重试。' }; docker compose up -d grafana"
 			],
 			"problemMatcher": [],
 			"hide": true
@@ -96,6 +95,20 @@
 				}
 			},
 			"problemMatcher": []
+		},
+		{
+			"label": "检查 MySQL 每个表最新更新时间",
+			"type": "shell",
+			"command": "python",
+			"args": [
+				"scripts/check_mysql_table_latest_update.py"
+			],
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"clear": true
+			}
 		}
 	],
 	"inputs": [

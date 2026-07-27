@@ -18,6 +18,15 @@ set RESTART_DELAY=5
 set STABLE_WINDOW=60
 :: 日志目录
 set LOG_DIR=logs
+:: QuestDB 预检查配置
+set QUESTDB_CHECK_HOST=127.0.0.1
+set QUESTDB_CHECK_PORT=9009
+set QUESTDB_WAIT_RETRIES=12
+set QUESTDB_WAIT_INTERVAL=5
+:: 设置为 1 可跳过 QuestDB 连通性检查
+set SKIP_QUESTDB_CHECK=0
+:: 设置为 1 可在启动前尝试通过 docker compose 启动 questdb
+set USE_DOCKER_QUESTDB=0
 :: ======================
 
 :: 检查 node 是否可用
@@ -54,6 +63,20 @@ if not exist "build\" (
 
 :: 创建日志目录
 if not exist "%LOG_DIR%\" mkdir "%LOG_DIR%"
+
+if "%USE_DOCKER_QUESTDB%"=="1" (
+    echo [提示] 正在尝试通过 docker compose 启动 QuestDB...
+    docker compose up -d questdb >nul 2>nul
+)
+
+if not "%SKIP_QUESTDB_CHECK%"=="1" (
+    call :WAIT_QUESTDB_READY
+    if %errorlevel% neq 0 (
+        echo [错误] QuestDB 未就绪，停止启动守护程序
+        pause
+        exit /b 1
+    )
+)
 
 :: 当前日志文件（按日期分文件）
 for /f "tokens=1-3 delims=/-. " %%a in ('echo %date%') do set TODAY=%%a-%%b-%%c
@@ -109,6 +132,27 @@ echo [守护] !RESTART_DELAY! 秒后进行第 !RESTART_COUNT!/%MAX_RESTARTS% 次
 echo        按 Ctrl+C 可终止守护
 timeout /t %RESTART_DELAY% /nobreak >nul
 goto :RUN_LOOP
+
+:WAIT_QUESTDB_READY
+set /a TRY_COUNT=0
+:QUESTDB_WAIT_LOOP
+set /a TRY_COUNT+=1
+
+powershell -NoProfile -Command "$c = New-Object System.Net.Sockets.TcpClient; try { $c.Connect('%QUESTDB_CHECK_HOST%', %QUESTDB_CHECK_PORT%); exit 0 } catch { exit 1 } finally { $c.Dispose() }" >nul 2>nul
+if %errorlevel% equ 0 (
+    echo [检查] QuestDB 已就绪：%QUESTDB_CHECK_HOST%:%QUESTDB_CHECK_PORT%
+    exit /b 0
+)
+
+if %TRY_COUNT% geq %QUESTDB_WAIT_RETRIES% (
+    echo [错误] QuestDB 连通性检查失败：%QUESTDB_CHECK_HOST%:%QUESTDB_CHECK_PORT%
+    echo        请先启动 QuestDB，或将 SKIP_QUESTDB_CHECK 设为 1 跳过检查
+    exit /b 1
+)
+
+echo [检查] 等待 QuestDB 就绪 (%TRY_COUNT%/%QUESTDB_WAIT_RETRIES%)...
+timeout /t %QUESTDB_WAIT_INTERVAL% /nobreak >nul
+goto :QUESTDB_WAIT_LOOP
 
 :GET_TIMESTAMP
 :: 将当前时间转为秒数（粗略，用于计算运行时长，不跨日精确）

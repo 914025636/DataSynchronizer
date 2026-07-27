@@ -38,7 +38,8 @@ cp .env.example .env
 编辑 `.env` 中的 QuestDB 地址（如果不是本地）：
 ```env
 QUESTDB_HOST=localhost
-QUESTDB_PORT=9000
+QUESTDB_PROTOCOL=tcp
+QUESTDB_PORT=9009
 ```
 
 如果交易所网络需要本地代理，可配置 CCXT 的 HTTP/WSS 代理：
@@ -164,7 +165,7 @@ A: 编辑 `.env` 中的 `QUESTDB_HOST` 和 `QUESTDB_PORT`
 A: 在 QuestDB Console 中运行 SQL，导出为 CSV 或使用 HTTP API
 
 ### Q: 数据延迟有多长？
-A: 使用 ILP over HTTP，写入缓冲周期为 500ms，几乎实时
+A: 使用 ILP over TCP，写入缓冲周期为 500ms，几乎实时
 
 ### Q: 能否同时保存到 MySQL？
 A: 可以，现有代码同时支持 MySQL 和 QuestDB 写入

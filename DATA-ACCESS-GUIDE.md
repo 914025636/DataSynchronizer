@@ -64,13 +64,15 @@ D:\Program Files\questdb-9.4.3-rt-windows-x86-64\bin\qdbroot
 
 QuestDB 表由 ILP 首次写入时自动创建。以下类型来自当前写入实现 `src/questdb/index.ts`。
 
+> ILP `.at(...)` 自动创建的 designated timestamp 列为 `timestamp`。历史文档曾将其写成 `ts`；查询前仍应使用 `table_columns()` 核验活动实例。
+
 ### `trades`：逐笔成交
 
 每一行是一笔标准化后的公开市场成交。
 
 | 字段 | QuestDB 类型 | 含义 |
 | --- | --- | --- |
-| `ts` | `TIMESTAMP` | 交易所成交时间；写入端输入 Unix 毫秒，QuestDB 查询结果按时间戳表示 |
+| `timestamp` | `TIMESTAMP` | 交易所成交时间；写入端输入 Unix 毫秒，QuestDB 查询结果按时间戳表示 |
 | `exchange` | `SYMBOL` | 小写交易所 ID，如 `binance`、`kucoin` |
 | `symbol` | `SYMBOL` | CCXT 统一交易对，如 `BTC/USDT` |
 | `side` | `SYMBOL` | `buy` 或 `sell` |
@@ -86,7 +88,7 @@ QuestDB 表由 ILP 首次写入时自动创建。以下类型来自当前写入�
 
 | 字段 | QuestDB 类型 | 含义 |
 | --- | --- | --- |
-| `ts` | `TIMESTAMP` | 消息时间；写入端输入 Unix 毫秒 |
+| `timestamp` | `TIMESTAMP` | 消息时间；写入端输入 Unix 毫秒 |
 | `exchange` | `SYMBOL` | 小写交易所 ID |
 | `symbol` | `SYMBOL` | CCXT 统一交易对，如 `BTC/USDT` |
 | `side` | `SYMBOL` | `ask`（卖盘）或 `bid`（买盘） |
@@ -100,8 +102,26 @@ QuestDB 表由 ILP 首次写入时自动创建。以下类型来自当前写入�
 - `snapshot` 是服务启动或重新订阅后的完整订单簿，每个价格档位一行。
 - `delta` 是后续变化，`qty > 0` 表示设置/替换该价格档位数量，`qty = 0` 表示删除。
 - `sequence` 被存为 `DOUBLE`，超大整数可能失去精度；值为 `0` 时不能依赖它排序。
-- 同一毫秒内可能有多次更新。仅按 `ts` 排序未必能恢复严格事件顺序；有可靠非零序列号时同时按 `sequence` 排序。
+- 同一毫秒内可能有多次更新。仅按 `timestamp` 排序未必能恢复严格事件顺序；有可靠非零序列号时同时按 `sequence` 排序。
 - 重建历史订单簿时，从目标时刻之前最近的一组 `snapshot` 开始，按时间和可用序列依次应用 `delta`。不要把所有历史行直接视为当前挂单。
+
+### 3.1 只读质量审计
+
+审计脚本只执行 `SELECT`，不会修改或删除数据。它自动识别 MySQL 动态 K 线和订单簿快照表，并检查 QuestDB 的 `trades`、`orderbook_delta`：
+
+```powershell
+python -m pip install -r scripts/requirements-data-quality.txt
+python scripts/audit_market_data.py
+```
+
+报告写入 `reports/data-quality/`，同时生成 JSON 和 CSV。发现失败项或数据库连接错误时退出码为 `1`，warning 不导致失败。可用以下参数单独审计一侧：
+
+```powershell
+python scripts/audit_market_data.py --skip-questdb
+python scripts/audit_market_data.py --skip-mysql
+```
+
+MySQL 连接读取 `.env` 中两套 `MYSQL_*` 配置；QuestDB SQL 读取可选的 `QUESTDB_SQL_HOST`、`QUESTDB_SQL_PORT`、`QUESTDB_SQL_USER`、`QUESTDB_SQL_PASSWORD` 和 `QUESTDB_SQL_DATABASE`，默认使用 `127.0.0.1:8812/admin/quest/qdb`。
 
 ## 4. 最小查询流程
 
@@ -116,8 +136,8 @@ SELECT * FROM table_columns('trades');
 SELECT * FROM table_columns('orderbook_delta');
 
 -- 查看覆盖时间和行数
-SELECT min(ts) AS min_ts, max(ts) AS max_ts, count() AS rows FROM trades;
-SELECT min(ts) AS min_ts, max(ts) AS max_ts, count() AS rows FROM orderbook_delta;
+SELECT min(timestamp) AS min_ts, max(timestamp) AS max_ts, count() AS rows FROM trades;
+SELECT min(timestamp) AS min_ts, max(timestamp) AS max_ts, count() AS rows FROM orderbook_delta;
 
 -- 查看有哪些交易所和交易对
 SELECT exchange, symbol, count() AS rows
@@ -129,12 +149,12 @@ ORDER BY rows DESC;
 ### 4.2 读取逐笔成交
 
 ```sql
-SELECT ts, exchange, symbol, side, price, quantity, trade_id
+SELECT timestamp, exchange, symbol, side, price, quantity, trade_id
 FROM trades
 WHERE exchange = 'binance'
   AND symbol = 'BTC/USDT'
-  AND ts IN '2026-07-19T00:00:00Z;2026-07-19T01:00:00Z'
-ORDER BY ts
+  AND timestamp IN '2026-07-19T00:00:00Z;2026-07-19T01:00:00Z'
+ORDER BY timestamp
 LIMIT 10000;
 ```
 
@@ -142,7 +162,7 @@ LIMIT 10000;
 
 ```sql
 SELECT
-  ts,
+  timestamp,
   first(price) AS open,
   max(price) AS high,
   min(price) AS low,
@@ -151,19 +171,19 @@ SELECT
 FROM trades
 WHERE exchange = 'binance'
   AND symbol = 'BTC/USDT'
-  AND ts IN '2026-07-19T00:00:00Z;2026-07-19T01:00:00Z'
+  AND timestamp IN '2026-07-19T00:00:00Z;2026-07-19T01:00:00Z'
 SAMPLE BY 1m ALIGN TO CALENDAR;
 ```
 
 ### 4.3 读取订单簿事件
 
 ```sql
-SELECT ts, exchange, symbol, side, update_type, price, qty, sequence
+SELECT timestamp, exchange, symbol, side, update_type, price, qty, sequence
 FROM orderbook_delta
 WHERE exchange = 'binance'
   AND symbol = 'BTC/USDT'
-  AND ts IN '2026-07-19T00:00:00Z;2026-07-19T00:05:00Z'
-ORDER BY ts, sequence
+  AND timestamp IN '2026-07-19T00:00:00Z;2026-07-19T00:05:00Z'
+ORDER BY timestamp, sequence
 LIMIT 100000;
 ```
 
@@ -175,7 +195,7 @@ FROM (
   SELECT *
   FROM orderbook_delta
   WHERE exchange = 'binance' AND symbol = 'BTC/USDT'
-  LATEST ON ts PARTITION BY exchange, symbol, side, price
+  LATEST ON timestamp PARTITION BY exchange, symbol, side, price
 )
 WHERE qty > 0;
 ```

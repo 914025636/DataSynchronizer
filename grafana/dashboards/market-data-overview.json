@@ -67,7 +67,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp AS time, avg(price) AS value, exchange || ' ' || symbol AS metric FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:sqlstring}) AND symbol IN (${symbol:sqlstring}) SAMPLE BY 10s ALIGN TO CALENDAR;",
+          "rawSql": "SELECT timestamp AS time, avg(price) AS value, exchange || ' ' || symbol AS metric FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) SAMPLE BY 10s ALIGN TO CALENDAR;",
           "refId": "A"
         }
       ],
@@ -110,7 +110,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT datediff('s', max(timestamp), now()) AS seconds_since_last_trade FROM trades WHERE exchange IN (${exchange:sqlstring}) AND symbol IN (${symbol:sqlstring});",
+          "rawSql": "SELECT datediff('s', max(timestamp), now()) AS seconds_since_last_trade FROM trades WHERE exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote});",
           "refId": "A"
         }
       ],
@@ -152,7 +152,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT count() AS trades_in_range FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:sqlstring}) AND symbol IN (${symbol:sqlstring});",
+          "rawSql": "SELECT count() AS trades_in_range FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote});",
           "refId": "A"
         }
       ],
@@ -209,7 +209,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp AS time, sum(quantity) AS value, side AS metric FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:sqlstring}) AND symbol IN (${symbol:sqlstring}) SAMPLE BY 1m ALIGN TO CALENDAR;",
+          "rawSql": "SELECT timestamp AS time, sum(quantity) AS value, side AS metric FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) SAMPLE BY 1m ALIGN TO CALENDAR;",
           "refId": "A"
         }
       ],
@@ -263,7 +263,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp AS time, count() AS value, exchange AS metric FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:sqlstring}) AND symbol IN (${symbol:sqlstring}) SAMPLE BY 1m ALIGN TO CALENDAR;",
+          "rawSql": "SELECT timestamp AS time, count() AS value, exchange AS metric FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) SAMPLE BY 1m ALIGN TO CALENDAR;",
           "refId": "A"
         }
       ],
@@ -309,7 +309,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp, exchange, symbol, side, price, quantity, trade_id FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:sqlstring}) AND symbol IN (${symbol:sqlstring}) ORDER BY timestamp DESC LIMIT 200;",
+          "rawSql": "SELECT timestamp, exchange, symbol, side, price, quantity, trade_id FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) ORDER BY timestamp DESC LIMIT 200;",
           "refId": "A"
         }
       ],
@@ -366,7 +366,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp AS time, count() AS value, side AS metric FROM orderbook_delta WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:sqlstring}) AND symbol IN (${symbol:sqlstring}) SAMPLE BY 10s ALIGN TO CALENDAR;",
+          "rawSql": "SELECT timestamp AS time, count() AS value, side AS metric FROM orderbook_delta WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) SAMPLE BY 10s ALIGN TO CALENDAR;",
           "refId": "A"
         }
       ],
@@ -412,7 +412,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp, exchange, symbol, side, update_type, price, qty, sequence FROM orderbook_delta WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:sqlstring}) AND symbol IN (${symbol:sqlstring}) ORDER BY timestamp DESC LIMIT 200;",
+          "rawSql": "SELECT timestamp, exchange, symbol, side, update_type, price, qty, sequence FROM orderbook_delta WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) ORDER BY timestamp DESC LIMIT 200;",
           "refId": "A"
         }
       ],
@@ -420,7 +420,7 @@
       "type": "table"
     }
   ],
-  "refresh": "5s",
+  "refresh": "15s",
   "schemaVersion": 39,
   "tags": ["questdb", "market-data", "datasynchronizer"],
   "templating": {
@@ -445,14 +445,14 @@
       {
         "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
         "datasource": { "type": "postgres", "uid": "questdb" },
-        "definition": "SELECT DISTINCT symbol FROM orderbook_delta WHERE exchange IN (${exchange:sqlstring}) ORDER BY symbol",
+        "definition": "SELECT DISTINCT symbol FROM orderbook_delta WHERE exchange IN (${exchange:singlequote}) ORDER BY symbol",
         "hide": 0,
         "includeAll": true,
         "label": "Symbol",
         "multi": true,
         "name": "symbol",
         "options": [],
-        "query": "SELECT DISTINCT symbol FROM orderbook_delta WHERE exchange IN (${exchange:sqlstring}) ORDER BY symbol",
+        "query": "SELECT DISTINCT symbol FROM orderbook_delta WHERE exchange IN (${exchange:singlequote}) ORDER BY symbol",
         "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
@@ -461,7 +461,7 @@
       }
     ]
   },
-  "time": { "from": "now-24h", "to": "now" },
+  "time": { "from": "now-6h", "to": "now" },
   "timepicker": {
     "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h"]
   },

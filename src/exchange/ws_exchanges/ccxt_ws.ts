@@ -17,6 +17,7 @@ type CloseSocket = () => boolean;
 const retryDelay = (attempt = 0): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, Math.min(1000 * 2 ** attempt, 30 * 1000)));
 const websocketIdleTimeout = Number(process.env.CCXT_WEBSOCKET_IDLE_TIMEOUT_MS || 2 * 60 * 1000);
+const websocketIdleExitEnabled = process.env.CCXT_WEBSOCKET_IDLE_EXIT === '1';
 let marketInitializationQueue = Promise.resolve();
 
 const enqueueMarketInitialization = async (operation: () => Promise<unknown>): Promise<void> => {
@@ -58,8 +59,15 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
     const idleTime = Date.now() - lastActivity;
 
     if (!closed && idleTime >= websocketIdleTimeout) {
-      logger.error(`${exchangeName} websocket idle for ${idleTime}ms; restarting process`);
-      process.exit(1);
+      logger.error(`${exchangeName} websocket idle for ${idleTime}ms`);
+      if (websocketIdleExitEnabled) {
+        logger.error(`${exchangeName} websocket idle watchdog is configured to exit process`);
+        process.exit(1);
+      }
+
+      // Keep process alive: close the client to force watch loops to reconnect.
+      lastActivity = Date.now();
+      client.close().catch((err: any) => logger.error(`${exchangeName} websocket reset error`, err));
     }
   }, Math.min(websocketIdleTimeout, 30 * 1000));
 
