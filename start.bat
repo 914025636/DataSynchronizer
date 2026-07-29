@@ -25,8 +25,10 @@ set QUESTDB_WAIT_RETRIES=12
 set QUESTDB_WAIT_INTERVAL=5
 :: 设置为 1 可跳过 QuestDB 连通性检查
 set SKIP_QUESTDB_CHECK=0
-:: 设置为 1 可在启动前尝试通过 docker compose 启动 questdb
-set USE_DOCKER_QUESTDB=0
+:: 设置为 1 时自动启动 Docker Desktop 和 Compose QuestDB，并验证数据卷
+set USE_DOCKER_QUESTDB=1
+:: 设置为 1 时只执行依赖和 QuestDB 预检查，不启动 Node 守护进程
+if not defined PRECHECK_ONLY set PRECHECK_ONLY=0
 :: ======================
 
 :: 检查 node 是否可用
@@ -65,8 +67,13 @@ if not exist "build\" (
 if not exist "%LOG_DIR%\" mkdir "%LOG_DIR%"
 
 if "%USE_DOCKER_QUESTDB%"=="1" (
-    echo [提示] 正在尝试通过 docker compose 启动 QuestDB...
-    docker compose up -d questdb >nul 2>nul
+    echo [提示] 正在准备 Docker QuestDB...
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-questdb-docker.ps1"
+    if !errorlevel! neq 0 (
+        echo [错误] Docker QuestDB 启动或验证失败
+        pause
+        exit /b 1
+    )
 )
 
 if not "%SKIP_QUESTDB_CHECK%"=="1" (
@@ -76,6 +83,11 @@ if not "%SKIP_QUESTDB_CHECK%"=="1" (
         pause
         exit /b 1
     )
+)
+
+if "%PRECHECK_ONLY%"=="1" (
+    echo [检查] 启动环境预检查通过
+    exit /b 0
 )
 
 :: 当前日志文件（按日期分文件）
@@ -100,6 +112,7 @@ set EXIT_CODE=%errorlevel%
 
 call :GET_TIMESTAMP END_TS
 set /a RUN_DURATION=!END_TS! - !START_TS!
+if !RUN_DURATION! lss 0 set /a RUN_DURATION+=86400
 
 echo.
 echo [守护] 进程已退出 ^| 退出码=%EXIT_CODE% ^| 运行时长=!RUN_DURATION!s
@@ -155,7 +168,7 @@ timeout /t %QUESTDB_WAIT_INTERVAL% /nobreak >nul
 goto :QUESTDB_WAIT_LOOP
 
 :GET_TIMESTAMP
-:: 将当前时间转为秒数（粗略，用于计算运行时长，不跨日精确）
+:: 将当前时间转为当天秒数，跨午夜时由调用方补偿 86400 秒
 for /f "tokens=1-4 delims=:.," %%a in ("%time%") do (
     set /a "_ts=(((1%%a-100)*60)+(1%%b-100))*60+(1%%c-100)"
 )

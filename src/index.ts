@@ -22,7 +22,6 @@ const {
   Warden,
   exchangeList,
   watchPairs,
-  exchangeMarketTypes,
 } = process.env;
 
 const wardenWatchPairs = (watchPairs || '')
@@ -54,7 +53,6 @@ process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 async function main(): Promise<void> {
   logger.info('StockML Synchronizer started');
-  CCXT_API.configureMarketTypes(exchangeMarketTypes);
 
   // Available Symbols and Precision informations from exchanges
   if (MarketData && parseInt(MarketData) === 1) {

@@ -10,23 +10,21 @@
 
 ### 1️⃣ 启动 QuestDB
 
-**选项 A：最简单（推荐）**
+**选项 A：Docker（当前项目推荐）**
 
-访问 [questdb.io/download](https://questdb.io/download/) 下载 Windows ZIP，解压后在 `bin` 文件夹中运行：
-```bash
-questdb.exe start
-```
-
-**选项 B：使用 Scoop**
 ```powershell
-scoop install questdb
-questdb start
+powershell -ExecutionPolicy Bypass -File .\start-questdb-docker.ps1
 ```
 
-**选项 C：使用 Docker**
-```bash
+该脚本会自动启动 Docker Desktop 和 Compose `questdb` 服务，并验证容器挂载、ILP `9009`、SQL `8812` 和 Web Console `9000`。Docker 实际数据位于 `D:\DockerData`；`C:\Users\Bin\AppData\Local\Docker` 只是指向该目录的 junction。
+
+启动完整服务：
+
+```powershell
 docker compose up -d
 ```
+
+Windows ZIP/Scoop 独立实例只作为备选方案。不要同时启动独立 QuestDB 和 Docker QuestDB，否则会争用 `9000`、`9009`、`8812` 端口并产生两套数据。
 
 ### 2️⃣ 配置环境变量
 
@@ -73,8 +71,8 @@ http://localhost:9000
 
 **查看最新成交**
 ```sql
-SELECT * FROM trades 
-ORDER BY ts DESC 
+SELECT * FROM trades
+ORDER BY timestamp DESC
 LIMIT 100;
 ```
 
@@ -83,7 +81,7 @@ LIMIT 100;
 SELECT *
 FROM (
     SELECT * FROM orderbook_delta
-    LATEST ON ts PARTITION BY (exchange, symbol, side, price)
+    LATEST ON timestamp PARTITION BY exchange, symbol, side, price
 )
 WHERE qty > 0
 LIMIT 20;
@@ -93,7 +91,7 @@ LIMIT 20;
 ```sql
 SELECT * FROM orderbook_delta
 WHERE update_type = 'delta'
-ORDER BY ts DESC
+ORDER BY timestamp DESC
 LIMIT 100;
 ```
 
@@ -109,11 +107,11 @@ SAMPLE BY 1m;
 **订单簿价差分析**
 ```sql
 SELECT 
-    ts, 
+    timestamp,
     exchange, 
     symbol,
-    (SELECT price FROM orderbook_delta WHERE side='ask' AND ts=orderbook_delta.ts LATEST ON ts) - 
-    (SELECT price FROM orderbook_delta WHERE side='bid' AND ts=orderbook_delta.ts LATEST ON ts) AS spread
+    (SELECT price FROM orderbook_delta WHERE side='ask' AND timestamp=orderbook_delta.timestamp LATEST ON timestamp) -
+    (SELECT price FROM orderbook_delta WHERE side='bid' AND timestamp=orderbook_delta.timestamp LATEST ON timestamp) AS spread
 FROM orderbook_delta
 WHERE exchange = 'binance'
 LIMIT 10;
@@ -124,20 +122,20 @@ LIMIT 10;
 ### `trades` 表
 ```sql
 CREATE TABLE trades (
-    ts TIMESTAMP,              -- 成交时间戳
+    timestamp TIMESTAMP,       -- 成交时间戳
     exchange SYMBOL,           -- 交易所 (e.g. 'binance')
     symbol SYMBOL,            -- 交易对 (e.g. 'BTC/USDT')
     side SYMBOL,              -- 买卖方向 ('buy' | 'sell')
     price DOUBLE,             -- 成交价格
     quantity DOUBLE,          -- 成交数量
     trade_id STRING           -- 交易ID
-) TIMESTAMP(ts) PARTITION BY DAY;
+) TIMESTAMP(timestamp) PARTITION BY DAY;
 ```
 
 ### `orderbook_delta` 表
 ```sql
 CREATE TABLE orderbook_delta (
-    ts TIMESTAMP,             -- 时间戳
+    timestamp TIMESTAMP,      -- 时间戳
     exchange SYMBOL,          -- 交易所
     symbol SYMBOL,            -- 交易对
     side SYMBOL,              -- 买卖方向 ('ask' | 'bid')
@@ -145,7 +143,7 @@ CREATE TABLE orderbook_delta (
     price DOUBLE,             -- 价格档位
     qty DOUBLE,               -- 数量（0 表示删除该档位）
     sequence DOUBLE           -- 交易所/CCXT 订单簿序列号（无则为 0）
-) TIMESTAMP(ts) PARTITION BY DAY;
+) TIMESTAMP(timestamp) PARTITION BY DAY;
 ```
 
 每次 WebSocket 更新中，每个变化的价格档位写入一行。数量变化和新增档位写入最新数量，删除档位写入 `qty = 0`。服务启动或重新订阅后的首帧完整订单簿使用 `update_type = 'snapshot'`，后续变化使用 `update_type = 'delta'`。

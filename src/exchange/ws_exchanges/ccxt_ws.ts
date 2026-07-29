@@ -19,6 +19,38 @@ const retryDelay = (attempt = 0): Promise<void> =>
 const websocketIdleTimeout = Number(process.env.CCXT_WEBSOCKET_IDLE_TIMEOUT_MS || 2 * 60 * 1000);
 const websocketIdleExitEnabled = process.env.CCXT_WEBSOCKET_IDLE_EXIT === '1';
 let marketInitializationQueue = Promise.resolve();
+let rejectionHandlerInstalled = false;
+
+const isRecoverableWebsocketError = (reason: unknown): boolean => {
+  const error = reason as { name?: string; message?: string } | null;
+  const name = error && typeof error.name === 'string' ? error.name : '';
+  const message = error && typeof error.message === 'string' ? error.message : String(reason);
+
+  return (
+    ['NetworkError', 'RequestTimeout', 'ExchangeNotAvailable'].includes(name) ||
+    /websocket|wss:\/\/|ping-pong|connection closed|socket disconnected|connect timeout/i.test(message)
+  );
+};
+
+const installRejectionHandler = (): void => {
+  if (rejectionHandlerInstalled) return;
+
+  process.on('unhandledRejection', (reason: unknown) => {
+    if (isRecoverableWebsocketError(reason)) {
+      logger.error('Recovered unhandled CCXT websocket rejection', reason);
+      return;
+    }
+
+    setImmediate(() => {
+      throw reason instanceof Error ? reason : new Error(String(reason));
+    });
+  });
+  rejectionHandlerInstalled = true;
+};
+
+const runBackgroundTask = (label: string, operation: () => Promise<void>): void => {
+  operation().catch((err: unknown) => logger.error(`${label} background task stopped unexpectedly`, err));
+};
 
 const enqueueMarketInitialization = async (operation: () => Promise<unknown>): Promise<void> => {
   const queuedOperation = marketInitializationQueue.then(operation, operation);
@@ -30,6 +62,7 @@ const enqueueMarketInitialization = async (operation: () => Promise<unknown>): P
 };
 
 export const openSocket = (exchange: string, symbols: string[]): CloseSocket => {
+  installRejectionHandler();
   const exchangeName = exchange.toLowerCase();
   const ExchangeClass = ccxt.pro[exchangeName as keyof typeof ccxt.pro] as ProExchangeConstructor | undefined;
 
@@ -152,8 +185,8 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
       try {
         await enqueueMarketInitialization(() => client.loadMarkets());
         symbols.forEach((symbol) => {
-          watchTrades(symbol);
-          watchOrderBook(symbol);
+          runBackgroundTask(`${exchangeName} ${symbol} trades`, () => watchTrades(symbol));
+          runBackgroundTask(`${exchangeName} ${symbol} orderbook`, () => watchOrderBook(symbol));
         });
         return;
       } catch (err) {
@@ -167,7 +200,7 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
     }
   };
 
-  initialize();
+  runBackgroundTask(`${exchangeName} initialization`, initialize);
 
   return (): boolean => {
     closed = true;

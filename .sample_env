@@ -72,7 +72,6 @@ Warden = 1
 # Coinbase supports spot only.
 exchangeList = binance,okx,bybit,coinbase
 # Market types per exchange. Supported values: spot,swap
-exchangeMarketTypes = binance:spot|swap,okx:spot|swap,bybit:spot|swap,coinbase:spot
 
 #
 ################# Warden settings

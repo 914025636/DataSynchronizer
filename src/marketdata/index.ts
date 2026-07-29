@@ -7,10 +7,8 @@ import { BaseDB } from '../database';
 
 class MarketDataClass {
   exchanges: string[];
-  updateFrequency: number;
   constructor() {
     this.exchanges = [];
-    this.updateFrequency = 3600 * 1000; // in ms
   }
 
   async start(exchanges: string[]): Promise<void> {
@@ -34,15 +32,11 @@ class MarketDataClass {
       }
 
       if (updatePromises.length > 0) {
-        logger.verbose('Marketdata Update loop');
+        logger.verbose('Marketdata initial snapshot');
         await Promise.all(updatePromises);
       }
     } catch (e) {
       logger.error('Marketdata Update ', e);
-    } finally {
-      setTimeout(() => {
-        this.updateLoop();
-      }, this.updateFrequency);
     }
   }
 

@@ -24,7 +24,6 @@ DataSynchronizer is a powerful NodeJS written Cryptocurrency exchange / Sentimen
 Configure exact CCXT unified symbols with the `exchange-symbol` format:
 
 ```dotenv
-exchangeMarketTypes=binance:spot|swap,okx:spot|swap,bybit:spot|swap,coinbase:spot
 watchPairs=binance-BTC/USDT,okx-ETH/USDT,bybit-BTC/USDT:USDT,coinbase-BTC/USD
 ```
 

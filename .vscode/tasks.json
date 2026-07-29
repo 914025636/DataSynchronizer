@@ -43,9 +43,27 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "准备 QuestDB 服务",
+			"type": "process",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\start-questdb-docker.ps1"
+			],
+			"problemMatcher": [],
+			"hide": true
+		},
+		{
 			"label": "在 VS Code 中打开 QuestDB 前端页面",
 			"type": "shell",
 			"command": "Write-Output '已请求在 VS Code 中打开 QuestDB'",
+			"dependsOrder": "sequence",
+			"dependsOn": [
+				"准备 QuestDB 服务"
+			],
 			"options": {
 				"env": {
 					"VSCODE_BROWSER_TRIGGER": "${input:openQuestDb}"
@@ -60,7 +78,7 @@
 			"args": [
 				"-NoProfile",
 				"-Command",
-				"$root = 'D:\\Program Files\\questdb-9.4.3-rt-windows-x86-64\\bin\\qdbroot'; if (-not (Test-Path $root)) { throw \"QuestDB 数据目录不存在: $root\" }; $files = Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue; $total = ($files | Measure-Object Length -Sum).Sum; Write-Host \"QuestDB 数据目录: $root\" -ForegroundColor Cyan; Write-Host (\"总占用: {0:N2} GB ({1:N2} MB)\" -f ($total / 1GB), ($total / 1MB)) -ForegroundColor Green; Write-Host ''; Write-Host '各表目录占用:' -ForegroundColor Cyan; Get-ChildItem (Join-Path $root 'db') -Directory -ErrorAction SilentlyContinue | ForEach-Object { $tableFiles = Get-ChildItem $_.FullName -Recurse -File -ErrorAction SilentlyContinue; $bytes = ($tableFiles | Measure-Object Length -Sum).Sum; [pscustomobject]@{ TableDirectory = $_.Name; SizeMB = [math]::Round($bytes / 1MB, 2); LastWrite = ($tableFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty LastWriteTime) } } | Sort-Object SizeMB -Descending | Format-Table -AutoSize; $drive = Get-PSDrive D; Write-Host (\"D 盘剩余: {0:N2} GB\" -f ($drive.Free / 1GB)) -ForegroundColor Yellow"
+				"$dockerRoot = 'D:\\DockerData'; $vhdx = Join-Path $dockerRoot 'wsl\\disk\\docker_data.vhdx'; Write-Host \"Docker 数据目录: $dockerRoot\" -ForegroundColor Cyan; if (Test-Path $vhdx) { $file = Get-Item $vhdx; Write-Host (\"Docker VHDX: {0:N2} GB\" -f ($file.Length / 1GB)) -ForegroundColor Green }; $status = (docker desktop status 2>$null | Out-String); if ($status -match 'running') { docker system df -v } else { Write-Host 'Docker Desktop 当前未运行，无法读取卷内明细。' -ForegroundColor Yellow }; $drive = Get-PSDrive D; Write-Host (\"D 盘剩余: {0:N2} GB\" -f ($drive.Free / 1GB)) -ForegroundColor Yellow"
 			],
 			"problemMatcher": [],
 			"presentation": {

@@ -5,10 +5,8 @@ import { logger } from '../logger';
 
 class PriceTickers {
   exchanges: string[];
-  updateFrequency: number;
   constructor() {
     this.exchanges = [];
-    this.updateFrequency = 30 * 1000; // in ms
   }
 
   async start(exchanges: string[]): Promise<void> {
@@ -30,15 +28,11 @@ class PriceTickers {
       }
 
       if (updatePromises.length > 0) {
-        logger.verbose('PriceTickers Update loop');
+        logger.verbose('PriceTickers initial snapshot');
         await Promise.all(updatePromises);
       }
     } catch (e) {
       logger.error('PriceTickers Update loop', e);
-    } finally {
-      setTimeout(() => {
-        this.updateLoop();
-      }, this.updateFrequency);
     }
   }
 

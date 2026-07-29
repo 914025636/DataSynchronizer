@@ -33,7 +33,7 @@
     "@questdb/nodejs-client": "^4.2.0",
     "binance-api-node": "^0.9.15",
     "candlestick-convert": "^5.0.0",
-    "ccxt": "^4.5.65",
+    "ccxt": "^4.5.68",
     "dotenv": "^8.0.0",
     "eventemitter3": "^4.0.0",
     "http-proxy-agent": "^9.1.0",

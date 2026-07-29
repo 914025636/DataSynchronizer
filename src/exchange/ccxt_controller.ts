@@ -19,34 +19,21 @@ const getProxyConfig = (): Record<string, string> => {
 
 class ExchangeAPI {
   exchanges: CcxtInstance[];
-  marketTypes: Map<string, MarketType[]>;
   constructor() {
     this.exchanges = [];
-    this.marketTypes = new Map();
   }
 
-  configureMarketTypes(config: string | undefined): void {
-    this.marketTypes.clear();
+  getMarketTypes(api: ccxt.Exchange): MarketType[] {
+    const marketTypes: MarketType[] = [];
 
-    if (!config) {
-      return;
+    if (api.has.spot) {
+      marketTypes.push('spot');
+    }
+    if (api.has.swap) {
+      marketTypes.push('swap');
     }
 
-    config.split(',').forEach((entry) => {
-      const [exchange, types = ''] = entry.split(':');
-      const marketTypes = types
-        .split('|')
-        .map((type) => type.trim())
-        .filter((type): type is MarketType => type === 'spot' || type === 'swap');
-
-      if (exchange && marketTypes.length > 0) {
-        this.marketTypes.set(exchange.trim().toLowerCase(), marketTypes);
-      }
-    });
-  }
-
-  getMarketTypes(exchange: string): MarketType[] {
-    return this.marketTypes.get(exchange.toLowerCase()) || ['spot'];
+    return marketTypes;
   }
 
   private requireCapability(api: ccxt.Exchange, capability: 'fetchTickers' | 'fetchOHLCV'): void {
@@ -62,7 +49,7 @@ class ExchangeAPI {
 
       const marketdata = await API.loadMarkets();
 
-      const marketTypes = this.getMarketTypes(exchange);
+      const marketTypes = this.getMarketTypes(API);
 
       return Object.entries(marketdata).reduce((markets, [symbol, market]) => {
         if (
@@ -85,7 +72,7 @@ class ExchangeAPI {
       this.requireCapability(API, 'fetchTickers');
 
       const tickerGroups = await Promise.all(
-        this.getMarketTypes(exchange).map((type) =>
+        this.getMarketTypes(API).map((type) =>
           API.fetchTickers(undefined, type === 'swap' ? { type, subType: 'linear' } : { type }),
         ),
       );
@@ -162,11 +149,6 @@ class ExchangeAPI {
 
     if (typeof ExchangeClass === 'function') {
       const api = new ExchangeClass({ enableRateLimit: true, ...getProxyConfig() });
-      const unsupportedMarketTypes = this.getMarketTypes(exchangeName).filter((type) => !api.has[type]);
-
-      if (unsupportedMarketTypes.length > 0) {
-        throw new Error(`${exchangeName} does not support ${unsupportedMarketTypes.join(',')} markets`);
-      }
 
       if (!this._isExchangeLoaded(exchange)) {
         this.exchanges.push({ exchangeName, api });

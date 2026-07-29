@@ -5,16 +5,7 @@ require('dotenv').config();
 import { CCXT_API } from '../exchange/ccxt_controller';
 
 describe('CCXT Controller Test', () => {
-  test('Configure spot and USDT perpetual markets', () => {
-    CCXT_API.configureMarketTypes('binance: spot | swap,kucoin:spot');
-
-    expect(CCXT_API.getMarketTypes('binance')).toEqual(['spot', 'swap']);
-    expect(CCXT_API.getMarketTypes('kucoin')).toEqual(['spot']);
-    expect(CCXT_API.getMarketTypes('kraken')).toEqual(['spot']);
-  });
-
-  test('Filter market data by configured types', async () => {
-    CCXT_API.configureMarketTypes('binance:spot|swap');
+  test('Filter market data by supported types', async () => {
     const loadExchange = jest.spyOn(CCXT_API, 'loadExchangeAPI').mockReturnValue(({
       loadMarkets: async () => ({
         'BTC/USDT': { symbol: 'BTC/USDT', spot: true, swap: false },
