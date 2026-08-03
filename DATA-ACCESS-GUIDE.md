@@ -6,8 +6,8 @@
 
 | 需求 | 数据源 | 读取入口 |
 | --- | --- | --- |
-| 历史逐笔成交 | QuestDB `trades` | HTTP `localhost:9000` 或 PostgreSQL 协议 `localhost:8812` |
-| 历史订单簿变化/重建 | QuestDB `orderbook_delta` | HTTP `localhost:9000` 或 PostgreSQL 协议 `localhost:8812` |
+| 历史逐笔成交 | QuestDB 每市场 `*_trades` | 先查 `market_data_catalog`，再通过 HTTP `localhost:9000` 或 PostgreSQL 协议 `localhost:18812` 读取 |
+| 历史订单簿变化/重建 | QuestDB 每市场 `*_orderbook_delta` | 先查 `market_data_catalog`，再通过 HTTP `localhost:9000` 或 PostgreSQL协议 `localhost:18812` 读取 |
 | 旧版逐交易对成交、K 线、订单簿快照 | MySQL | 使用 `.env` 中的 `MYSQL_*` / `MYSQL_*_EXCHANGE` 配置 |
 | 当前订单簿短期快照和实时通知 | Redis | 使用 `.env` 中的 `REDIS_*` 配置；它不是长期历史库 |
 | 可视化查看 | Grafana | `http://localhost:3000` |
@@ -17,7 +17,7 @@
 
 1. 新的高频历史行情读取任务使用 QuestDB。
 2. 通过 SQL、HTTP API 或 PostgreSQL wire protocol 读取，不要直接读取 `db` 目录中的内部文件。
-3. 查询必须先限制时间范围、交易所和交易对，尤其是 `orderbook_delta`。
+3. 查询必须先从 `market_data_catalog` 解析目标市场表，再限制时间范围。
 4. 时间范围不明确时，先执行元数据/范围查询，不要直接全表导出。
 
 ## 2. QuestDB 连接与物理位置
@@ -26,7 +26,9 @@
 
 ```env
 QUESTDB_HOST=localhost
-QUESTDB_PORT=9000
+QUESTDB_PROTOCOL=tcp
+QUESTDB_PORT=9009
+QUESTDB_SQL_PORT=18812
 ```
 
 端口用途：
@@ -34,10 +36,10 @@ QUESTDB_PORT=9000
 | 端口 | 协议 | 用途 |
 | --- | --- | --- |
 | `9000` | HTTP | Web Console、REST 查询、ILP over HTTP 写入 |
-| `8812` | PostgreSQL wire | SQL 客户端、Grafana、`psql`、Python/Node PostgreSQL 驱动 |
+| `18812` | PostgreSQL wire | Docker 宿主机端口；映射到容器内 `8812`，供 SQL 客户端、Grafana、`psql`、Python/Node 驱动使用 |
 | `9009` | ILP TCP | InfluxDB Line Protocol 写入，不是首选读取接口 |
 
-Grafana 已配置为通过 PostgreSQL 协议访问 `host.docker.internal:8812`，数据库为 `qdb`，默认本地开发账号见 `grafana/provisioning/datasources/questdb.yml`。
+Grafana 已配置为通过 PostgreSQL 协议访问 `host.docker.internal:18812`，数据库为 `qdb`，默认本地开发账号见 `grafana/provisioning/datasources/questdb.yml`。
 
 ### 当前 Windows 实例
 
@@ -66,7 +68,7 @@ QuestDB 表由 ILP 首次写入时自动创建。以下类型来自当前写入�
 
 > ILP `.at(...)` 自动创建的 designated timestamp 列为 `timestamp`。历史文档曾将其写成 `ts`；查询前仍应使用 `table_columns()` 核验活动实例。
 
-### `trades`：逐笔成交
+### `{market}_trades`：逐笔成交
 
 每一行是一笔标准化后的公开市场成交。
 
@@ -82,7 +84,7 @@ QuestDB 表由 ILP 首次写入时自动创建。以下类型来自当前写入�
 
 注意：QuestDB 写入路径没有显式去重。读取方需要去重时，可按业务语义使用 `(exchange, symbol, trade_id)`；不要只按 `ts` 去重，同一毫秒可能有多笔成交。
 
-### `orderbook_delta`：订单簿档位事件
+### `{market}_orderbook_delta`：订单簿档位事件
 
 每一行表示某次订单簿消息中的一个价格档位。一次 WebSocket 消息通常产生多行，且这些行可共享同一个 `ts` 和 `sequence`。
 
@@ -105,9 +107,23 @@ QuestDB 表由 ILP 首次写入时自动创建。以下类型来自当前写入�
 - 同一毫秒内可能有多次更新。仅按 `timestamp` 排序未必能恢复严格事件顺序；有可靠非零序列号时同时按 `sequence` 排序。
 - 重建历史订单簿时，从目标时刻之前最近的一组 `snapshot` 开始，按时间和可用序列依次应用 `delta`。不要把所有历史行直接视为当前挂单。
 
+### `market_data_catalog`：市场路由
+
+每个 exchange-symbol 市场对应一张成交表和一张订单簿表。读取最新路由：
+
+```sql
+SELECT exchange, symbol, trades_table, orderbook_delta_table
+FROM market_data_catalog
+LATEST ON timestamp PARTITION BY exchange, symbol;
+```
+
+表名显式包含市场类型：现货使用 `_spot`，CCXT `BASE/QUOTE:SETTLE` 格式的永续/掉期使用 `_swap`，例如 `binance_btc_usdt_spot_trades` 和 `gate_btc_usdt_swap_orderbook_delta`。表名不使用哈希，必须从 catalog 或仓库的严格命名函数获得，不能把任意外部文本直接拼进 SQL。
+
+旧统一表 `trades` 和 `orderbook_delta` 仅保留历史数据且切换后只读；新数据不回填、不双写。查询跨越切换时间时，需要分别读取旧统一表和新市场分表。
+
 ### 3.1 只读质量审计
 
-审计脚本只执行 `SELECT`，不会修改或删除数据。它自动识别 MySQL 动态 K 线和订单簿快照表，并检查 QuestDB 的 `trades`、`orderbook_delta`：
+审计脚本只执行 `SELECT`，不会修改或删除数据。它自动识别 MySQL 动态表，并通过 QuestDB `market_data_catalog` 发现和检查所有当前市场分表：
 
 ```powershell
 python -m pip install -r scripts/requirements-data-quality.txt
@@ -121,7 +137,41 @@ python scripts/audit_market_data.py --skip-questdb
 python scripts/audit_market_data.py --skip-mysql
 ```
 
-MySQL 连接读取 `.env` 中两套 `MYSQL_*` 配置；QuestDB SQL 读取可选的 `QUESTDB_SQL_HOST`、`QUESTDB_SQL_PORT`、`QUESTDB_SQL_USER`、`QUESTDB_SQL_PASSWORD` 和 `QUESTDB_SQL_DATABASE`，默认使用 `127.0.0.1:8812/admin/quest/qdb`。
+MySQL 连接读取 `.env` 中两套 `MYSQL_*` 配置；QuestDB SQL 读取可选的 `QUESTDB_SQL_HOST`、`QUESTDB_SQL_PORT`、`QUESTDB_SQL_USER`、`QUESTDB_SQL_PASSWORD` 和 `QUESTDB_SQL_DATABASE`，默认使用 `127.0.0.1:18812/admin/quest/qdb`。
+
+### 3.2 指定时间窗清洗与成交修复
+
+`scripts/reconcile_market_data.py` 按 UTC 时间窗对账 CCXT 与 QuestDB 成交，同时审计 MySQL 遗留表，并把 QuestDB 订单簿分为可信、可疑和不可恢复区间。默认模式是只读 dry-run：
+
+```powershell
+python scripts/reconcile_market_data.py `
+  --start 2026-07-20T00:00:00Z `
+  --end 2026-07-20T00:05:00Z `
+  --exchange binance `
+  --symbol BTC/USDT
+```
+
+只有 CCXT 分页能够证明目标区间完整，并且不存在成交 ID 内容冲突时，才允许显式写入 companion 表：
+
+```powershell
+python scripts/reconcile_market_data.py `
+  --start 2026-07-20T00:00:00Z `
+  --end 2026-07-20T00:05:00Z `
+  --exchange binance `
+  --symbol BTC/USDT `
+  --apply
+```
+
+修复不会改写市场分表。成交写入统一的 `trades_repair_staging`，校验后提升到 `trades_repair`；订单簿质量区间写入统一的 `orderbook_quality_intervals`。DDL 和按市场查询模板见 `SQL/questdb_reconciliation.sql`。
+
+订单簿缺口无法通过交易所接口回溯，因此处理原则是：
+
+- `trusted`：从有效完整 snapshot 开始，序列与重放结果可信。
+- `suspect`：序列缺失、为零或顺序存在歧义，保留但默认不作为严格回放数据。
+- `unrecoverable`：存在序列缺口、倒退、非法帧或 crossed book；缺口后的 delta 不再套用到旧状态。
+- 只有后续有效完整 snapshot 才能重新进入 `trusted`，不会插值或根据成交数据猜测挂单。
+
+退出码为：`0` 无问题或修复成功，`1` dry-run 发现可修复项或可疑区间，`2` 参数错误，`3` 源不完整、订单簿不可恢复或成交冲突，`4` 网络、数据库或报告运行错误。报告写入 `reports/data-reconciliation/`。
 
 ## 4. 最小查询流程
 
@@ -131,29 +181,26 @@ MySQL 连接读取 `.env` 中两套 `MYSQL_*` 配置；QuestDB SQL 读取可选�
 -- 查看用户表
 SELECT * FROM tables();
 
+-- 发现每个市场对应的两张表
+SELECT exchange, symbol, trades_table, orderbook_delta_table
+FROM market_data_catalog
+LATEST ON timestamp PARTITION BY exchange, symbol;
+
 -- 查看实际字段和类型，自动建表环境中以此结果为准
-SELECT * FROM table_columns('trades');
-SELECT * FROM table_columns('orderbook_delta');
+SELECT * FROM table_columns('binance_btc_usdt_spot_trades');
+SELECT * FROM table_columns('binance_btc_usdt_spot_orderbook_delta');
 
 -- 查看覆盖时间和行数
-SELECT min(timestamp) AS min_ts, max(timestamp) AS max_ts, count() AS rows FROM trades;
-SELECT min(timestamp) AS min_ts, max(timestamp) AS max_ts, count() AS rows FROM orderbook_delta;
-
--- 查看有哪些交易所和交易对
-SELECT exchange, symbol, count() AS rows
-FROM trades
-GROUP BY exchange, symbol
-ORDER BY rows DESC;
+SELECT min(timestamp), max(timestamp), count() FROM "binance_btc_usdt_spot_trades";
+SELECT min(timestamp), max(timestamp), count() FROM "binance_btc_usdt_spot_orderbook_delta";
 ```
 
 ### 4.2 读取逐笔成交
 
 ```sql
 SELECT timestamp, exchange, symbol, side, price, quantity, trade_id
-FROM trades
-WHERE exchange = 'binance'
-  AND symbol = 'BTC/USDT'
-  AND timestamp IN '2026-07-19T00:00:00Z;2026-07-19T01:00:00Z'
+FROM "binance_btc_usdt_spot_trades"
+WHERE timestamp IN '2026-07-19T00:00:00Z;2026-07-19T01:00:00Z'
 ORDER BY timestamp
 LIMIT 10000;
 ```
@@ -168,10 +215,8 @@ SELECT
   min(price) AS low,
   last(price) AS close,
   sum(quantity) AS volume
-FROM trades
-WHERE exchange = 'binance'
-  AND symbol = 'BTC/USDT'
-  AND timestamp IN '2026-07-19T00:00:00Z;2026-07-19T01:00:00Z'
+FROM "binance_btc_usdt_spot_trades"
+WHERE timestamp IN '2026-07-19T00:00:00Z;2026-07-19T01:00:00Z'
 SAMPLE BY 1m ALIGN TO CALENDAR;
 ```
 
@@ -179,10 +224,8 @@ SAMPLE BY 1m ALIGN TO CALENDAR;
 
 ```sql
 SELECT timestamp, exchange, symbol, side, update_type, price, qty, sequence
-FROM orderbook_delta
-WHERE exchange = 'binance'
-  AND symbol = 'BTC/USDT'
-  AND timestamp IN '2026-07-19T00:00:00Z;2026-07-19T00:05:00Z'
+FROM "binance_btc_usdt_spot_orderbook_delta"
+WHERE timestamp IN '2026-07-19T00:00:00Z;2026-07-19T00:05:00Z'
 ORDER BY timestamp, sequence
 LIMIT 100000;
 ```
@@ -193,8 +236,7 @@ LIMIT 100000;
 SELECT *
 FROM (
   SELECT *
-  FROM orderbook_delta
-  WHERE exchange = 'binance' AND symbol = 'BTC/USDT'
+  FROM "binance_btc_usdt_spot_orderbook_delta"
   LATEST ON timestamp PARTITION BY exchange, symbol, side, price
 )
 WHERE qty > 0;
@@ -205,13 +247,13 @@ WHERE qty > 0;
 PowerShell 中获取 JSON：
 
 ```powershell
-curl.exe --get --data-urlencode "query=SELECT * FROM trades ORDER BY ts DESC LIMIT 10" http://localhost:9000/exec
+curl.exe --get --data-urlencode "query=SELECT * FROM binance_btc_usdt_spot_trades ORDER BY timestamp DESC LIMIT 10" http://localhost:9000/exec
 ```
 
 导出 CSV：
 
 ```powershell
-curl.exe --get --data-urlencode "query=SELECT * FROM trades WHERE exchange = 'binance' AND symbol = 'BTC/USDT' AND ts IN '2026-07-19T00:00:00Z;2026-07-19T01:00:00Z' ORDER BY ts" http://localhost:9000/exp --output trades.csv
+curl.exe --get --data-urlencode "query=SELECT * FROM binance_btc_usdt_spot_trades WHERE timestamp IN '2026-07-19T00:00:00Z;2026-07-19T01:00:00Z' ORDER BY timestamp" http://localhost:9000/exp --output trades.csv
 ```
 
 程序化读取大量数据时优先使用 PostgreSQL 协议并采用流式/分批读取；HTTP `/exec` 更适合元数据和小结果集，`/exp` 适合受限范围的 CSV 导出。
@@ -291,7 +333,7 @@ flowchart LR
   B --> D[MySQL 动态历史表]
   B --> E[Redis 订单簿快照 / PubSub]
   C --> F[HTTP 9000]
-  C --> G[PostgreSQL 8812]
+  C --> G[PostgreSQL 18812]
   G --> H[Grafana]
 ```
 

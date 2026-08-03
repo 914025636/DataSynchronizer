@@ -3,8 +3,9 @@
 ## 概述
 
 此项目已集成 **QuestDB** 时序数据库，用于存储：
-- **逐笔成交数据** (`trades` 表)
-- **订单簿增量数据** (`orderbook_delta` 表)
+- **逐笔成交数据**（每个交易所-交易对一张 `*_trades` 表）
+- **订单簿增量数据**（每个交易所-交易对一张 `*_orderbook_delta` 表）
+- **市场表路由**（统一的 `market_data_catalog` 表）
 
 ## 快速开始（5 分钟）
 
@@ -16,7 +17,7 @@
 powershell -ExecutionPolicy Bypass -File .\start-questdb-docker.ps1
 ```
 
-该脚本会自动启动 Docker Desktop 和 Compose `questdb` 服务，并验证容器挂载、ILP `9009`、SQL `8812` 和 Web Console `9000`。Docker 实际数据位于 `D:\DockerData`；`C:\Users\Bin\AppData\Local\Docker` 只是指向该目录的 junction。
+该脚本会自动启动 Docker Desktop 和 Compose `questdb` 服务，并验证容器挂载、ILP `9009`、宿主机 SQL `18812` 和 Web Console `9000`。容器内 PostgreSQL wire 仍使用标准端口 `8812`。Docker 实际数据位于 `D:\DockerData`；`C:\Users\Bin\AppData\Local\Docker` 只是指向该目录的 junction。
 
 启动完整服务：
 
@@ -24,7 +25,7 @@ powershell -ExecutionPolicy Bypass -File .\start-questdb-docker.ps1
 docker compose up -d
 ```
 
-Windows ZIP/Scoop 独立实例只作为备选方案。不要同时启动独立 QuestDB 和 Docker QuestDB，否则会争用 `9000`、`9009`、`8812` 端口并产生两套数据。
+Windows ZIP/Scoop 独立实例只作为备选方案。不要同时启动独立 QuestDB 和 Docker QuestDB，否则会争用 `9000`、`9009` 端口并产生两套数据。Docker SQL 对外端口使用 `18812`，以避开本机 Windows 保留的 `8812` 端口范围。
 
 ### 2️⃣ 配置环境变量
 
@@ -71,7 +72,7 @@ http://localhost:9000
 
 **查看最新成交**
 ```sql
-SELECT * FROM trades
+SELECT * FROM "binance_btc_usdt_spot_trades"
 ORDER BY timestamp DESC
 LIMIT 100;
 ```
@@ -80,7 +81,7 @@ LIMIT 100;
 ```sql
 SELECT *
 FROM (
-    SELECT * FROM orderbook_delta
+    SELECT * FROM "binance_btc_usdt_spot_orderbook_delta"
     LATEST ON timestamp PARTITION BY exchange, symbol, side, price
 )
 WHERE qty > 0
@@ -89,7 +90,7 @@ LIMIT 20;
 
 **查看原始订单簿增量记录**
 ```sql
-SELECT * FROM orderbook_delta
+SELECT * FROM "binance_btc_usdt_spot_orderbook_delta"
 WHERE update_type = 'delta'
 ORDER BY timestamp DESC
 LIMIT 100;
@@ -99,29 +100,22 @@ LIMIT 100;
 ```sql
 SELECT timestamp, first(price) open, max(price) high,
        min(price) low, last(price) close, sum(quantity) volume
-FROM trades
-WHERE exchange = 'binance' AND symbol = 'BTC/USDT'
+FROM "binance_btc_usdt_spot_trades"
 SAMPLE BY 1m;
 ```
 
-**订单簿价差分析**
+**发现市场对应表**
 ```sql
-SELECT 
-    timestamp,
-    exchange, 
-    symbol,
-    (SELECT price FROM orderbook_delta WHERE side='ask' AND timestamp=orderbook_delta.timestamp LATEST ON timestamp) -
-    (SELECT price FROM orderbook_delta WHERE side='bid' AND timestamp=orderbook_delta.timestamp LATEST ON timestamp) AS spread
-FROM orderbook_delta
-WHERE exchange = 'binance'
-LIMIT 10;
+SELECT exchange, symbol, trades_table, orderbook_delta_table
+FROM market_data_catalog
+LATEST ON timestamp PARTITION BY exchange, symbol;
 ```
 
 ## 数据表结构
 
-### `trades` 表
+### `{market}_trades` 表
 ```sql
-CREATE TABLE trades (
+CREATE TABLE binance_btc_usdt_spot_trades (
     timestamp TIMESTAMP,       -- 成交时间戳
     exchange SYMBOL,           -- 交易所 (e.g. 'binance')
     symbol SYMBOL,            -- 交易对 (e.g. 'BTC/USDT')
@@ -132,9 +126,9 @@ CREATE TABLE trades (
 ) TIMESTAMP(timestamp) PARTITION BY DAY;
 ```
 
-### `orderbook_delta` 表
+### `{market}_orderbook_delta` 表
 ```sql
-CREATE TABLE orderbook_delta (
+CREATE TABLE binance_btc_usdt_spot_orderbook_delta (
     timestamp TIMESTAMP,      -- 时间戳
     exchange SYMBOL,          -- 交易所
     symbol SYMBOL,            -- 交易对
@@ -147,6 +141,12 @@ CREATE TABLE orderbook_delta (
 ```
 
 每次 WebSocket 更新中，每个变化的价格档位写入一行。数量变化和新增档位写入最新数量，删除档位写入 `qty = 0`。服务启动或重新订阅后的首帧完整订单簿使用 `update_type = 'snapshot'`，后续变化使用 `update_type = 'delta'`。
+
+表名显式包含市场类型：现货使用 `_spot`，CCXT `BASE/QUOTE:SETTLE` 格式的永续/掉期使用 `_swap`。例如 `binance_btc_usdt_spot_trades` 和 `gate_btc_usdt_swap_orderbook_delta`。表名不使用哈希，只包含小写字母、数字和下划线，最长 127 字符。
+
+`market_data_catalog` 保存 `exchange`、`symbol`、`trades_table` 和 `orderbook_delta_table`。查询工具应先读取 catalog，再使用其中经过校验的表名。Grafana 一次选择一个市场，不执行跨动态表的隐式聚合。
+
+旧的统一 `trades` 和 `orderbook_delta` 表不迁移、不回填、不双写，并保留只读。新版本启动后只向市场分表写入，不应删除旧表。
 
 ## 码源代码位置
 

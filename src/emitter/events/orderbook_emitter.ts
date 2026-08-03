@@ -9,7 +9,24 @@ import { TradepairQueries } from '../../tradepairs/tradepairs';
 import { DBQueries } from '../../database/queries';
 import { Redis, RedisPub } from '../../redis/redis';
 import { TableTemplates } from '../../database/queries/enums';
-import { QuestDBWriter } from '../../questdb';
+import { MarketStreamProducer } from '../../redis/market_stream_client';
+import { MARKET_STREAMS } from '../../redis/market_streams';
+
+const marketStreamProducer = new MarketStreamProducer();
+let lastStreamErrorAt = 0;
+let suppressedStreamErrors = 0;
+
+function logStreamError(error: unknown): void {
+  const now = Date.now();
+  if (now - lastStreamErrorAt < 30000) {
+    suppressedStreamErrors += 1;
+    return;
+  }
+  const suffix = suppressedStreamErrors > 0 ? ` (suppressed ${suppressedStreamErrors} similar errors)` : '';
+  logger.error(`Redis orderbook stream write error${suffix}`, error);
+  lastStreamErrorAt = now;
+  suppressedStreamErrors = 0;
+}
 
 const memoryLimit =
   process.env.ORDERBOOK_SIZE_LIMIT === undefined ? 1024 : parseInt(process.env.ORDERBOOK_SIZE_LIMIT, 10);
@@ -49,18 +66,21 @@ class OrderbookEmitter {
         TradepairQueries.idToSymbol(exchange, symbol)
           .then((ccxtSymbol) => {
             if (ccxtSymbol) {
-              return QuestDBWriter.writeOrderbookDelta(
+              return marketStreamProducer.append(MARKET_STREAMS.orderbook, {
+                schemaVersion: 1,
+                eventType: 'orderbook',
                 exchange,
-                ccxtSymbol,
-                asks as [number, number][],
-                bids as [number, number][],
-                depth.timestamp || Date.now(),
-                depth.sequence,
-                depth.updateType,
-              );
+                symbol: ccxtSymbol,
+                eventTime: depth.timestamp || Date.now(),
+                ingestedAt: Date.now(),
+                asks: asks as [number, number][],
+                bids: bids as [number, number][],
+                sequence: depth.sequence,
+                updateType: depth.updateType,
+              });
             }
           })
-          .catch((e) => logger.error('QuestDB orderbook delta write error', e));
+          .catch((e) => logStreamError(e));
 
         if (exchangeOrderbooks.hasOrderBook(symbol)) {
           try {

@@ -254,6 +254,16 @@ fetchTrades(symbol, since?, limit?, params?)
 6. checkpoint 应保存原生 ID/cursor，不要只保存时间戳。同一毫秒可能有多笔成交，仅按时间续传容易漏数或重复。
 7. 导入后按分钟聚合数量和成交额，与交易所 OHLCV/volume 做区间核对，及时发现时间单位、side 和数量单位错误。
 
+### 9.1 本仓库清洗工具的安全边界
+
+`scripts/reconcile_market_data.py` 当前为 `binance`、`okx`、`bybit`、`gate`、`coinbase` 提供统一的有限时间窗抓取入口，但不会把 `has.fetchTrades` 当成历史完整性证明。
+
+- 返回页明确观察到 `end` 边界或在持续推进游标后得到空页，才可能标记 `source_complete=true`。
+- 统一接口返回满页时，同一毫秒可能仍有未返回成交。在原生 ID/cursor 适配器完成真实验证前，工具会以 `native_cursor_required_at_full_page_boundary` 停止并禁止 `--apply`。
+- Bybit 公共接口仅表示近期成交；当前适配器不会据此批准任意历史窗口修复。
+- 相同 `(exchange, symbol, trade_id)` 的字段发生冲突时只报告，不覆盖原始记录。
+- 修复结果进入 QuestDB companion 表，不直接追加到没有唯一约束的原始 `trades`。
+
 ## 10. 官方资料
 
 - Binance Spot REST：<https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md>

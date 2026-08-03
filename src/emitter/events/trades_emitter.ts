@@ -2,7 +2,24 @@ import { logger } from '../../logger';
 import { Emitter } from '../emitter';
 
 import { TradepairQueries } from '../../tradepairs/tradepairs';
-import { QuestDBWriter } from '../../questdb';
+import { MarketStreamProducer } from '../../redis/market_stream_client';
+import { MARKET_STREAMS } from '../../redis/market_streams';
+
+const marketStreamProducer = new MarketStreamProducer();
+let lastStreamErrorAt = 0;
+let suppressedStreamErrors = 0;
+
+function logStreamError(error: unknown): void {
+  const now = Date.now();
+  if (now - lastStreamErrorAt < 30000) {
+    suppressedStreamErrors += 1;
+    return;
+  }
+  const suffix = suppressedStreamErrors > 0 ? ` (suppressed ${suppressedStreamErrors} similar errors)` : '';
+  logger.error(`Redis market trade stream write error${suffix}`, error);
+  lastStreamErrorAt = now;
+  suppressedStreamErrors = 0;
+}
 
 class TradesEmitter {
   constructor() {
@@ -11,27 +28,24 @@ class TradesEmitter {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     Emitter.on('Trades', (exchange: string, trade: any) => {
-      setImmediate(async () => {
-        try {
-          // Get CCXT standard symbol
-          const ccxtSymbol = await TradepairQueries.idToSymbol(exchange, trade.symbol);
+      TradepairQueries.idToSymbol(exchange, trade.symbol)
+        .then((ccxtSymbol) => {
+          if (!ccxtSymbol) return;
 
-          if (ccxtSymbol) {
-            // 写入 QuestDB（非阻塞，高性能）
-            QuestDBWriter.writeTrade(
-              exchange,
-              ccxtSymbol,
-              trade.side,
-              String(trade.price),
-              String(trade.quantity),
-              String(trade.tradeId),
-              trade.time,
-            ).catch((err: unknown) => logger.error('QuestDB writeTrade error', err));
-          }
-        } catch (err) {
-          logger.error('Error', err);
-        }
-      });
+          return marketStreamProducer.append(MARKET_STREAMS.trades, {
+            schemaVersion: 1,
+            eventType: 'trade',
+            exchange,
+            symbol: ccxtSymbol,
+            eventTime: trade.time,
+            ingestedAt: Date.now(),
+            side: trade.side,
+            price: String(trade.price),
+            quantity: String(trade.quantity),
+            tradeId: String(trade.tradeId),
+          });
+        })
+        .catch((err: unknown) => logStreamError(err));
     });
   }
 }

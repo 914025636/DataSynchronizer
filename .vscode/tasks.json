@@ -3,14 +3,27 @@
 	"tasks": [
 		{
 			"label": "启动 DataSynchronizer 守护程序",
-			"type": "shell",
-			"command": "cmd.exe",
+			"type": "process",
+			"command": "powershell.exe",
 			"args": [
-				"/c",
-				"start.bat"
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\start-all.ps1"
 			],
 			"isBackground": true,
-			"problemMatcher": [],
+			"problemMatcher": {
+				"owner": "datasynchronizer",
+				"pattern": {
+					"regexp": "$^"
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "^\\[supervisor\\] starting$",
+					"endsPattern": "^\\[supervisor\\] ready$"
+				}
+			},
 			"group": "build"
 		},
 		{

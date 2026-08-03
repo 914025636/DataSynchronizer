@@ -5,6 +5,9 @@
   "main": "./build/index.js",
   "scripts": {
     "start": "node  ./build/index.js",
+    "start:stream-worker": "node ./build/stream_worker.js",
+    "start:trade-worker": "set MARKET_STREAM_WORKER_MODE=trades&& node ./build/stream_worker.js",
+    "start:orderbook-worker": "set MARKET_STREAM_WORKER_MODE=orderbook&& node ./build/stream_worker.js",
     "dev": "tsc && node --inspect ./build/index.js",
     "test": "jest",
     "prebuild": "rimraf build",

@@ -22,6 +22,7 @@ from check_mysql_table_latest_update import (
     list_tables,
     load_env_file,
 )
+from data_reconciliation.questdb_table_names import questdb_market_tables, quote_identifier
 
 
 CANDLE_COLUMNS = {"time", "open", "high", "low", "close", "volume"}
@@ -209,20 +210,21 @@ def connect_questdb(host: str, port: int, user: str, password: str, database: st
     return DBClient(connection, "psycopg")
 
 
-def audit_questdb_table(client: DBClient, table: str) -> List[AuditResult]:
-    summary = client.query(f'SELECT count(), min(timestamp), max(timestamp) FROM "{table}"')[0]
+def audit_questdb_table(client: DBClient, table: str, kind: str) -> List[AuditResult]:
+    identifier = quote_identifier(table)
+    summary = client.query(f"SELECT count(), min(timestamp), max(timestamp) FROM {identifier}")[0]
     findings = [AuditResult("questdb", "qdb", table, "summary", "info", int(summary[0]), f"time={summary[1]}..{summary[2]}")]
-    if table == "trades":
+    if kind == "trades":
         invalid_numeric = client.query(
-            "SELECT count() FROM trades WHERE price <= 0 OR quantity <= 0 OR price != price OR quantity != quantity"
+            f"SELECT count() FROM {identifier} WHERE price <= 0 OR quantity <= 0 OR price != price OR quantity != quantity"
         )[0][0]
         invalid_trade_id = client.query(
-            "SELECT count() FROM trades WHERE trade_id IS NULL OR trade_id = '' OR trade_id = 'undefined'"
+            f"SELECT count() FROM {identifier} WHERE trade_id IS NULL OR trade_id = '' OR trade_id = 'undefined'"
         )[0][0]
-        invalid_side = client.query("SELECT count() FROM trades WHERE side NOT IN ('buy', 'sell')")[0][0]
+        invalid_side = client.query(f"SELECT count() FROM {identifier} WHERE side NOT IN ('buy', 'sell')")[0][0]
         duplicate = client.query(
             "SELECT COALESCE(sum(duplicates), 0) FROM ("
-            "SELECT count() - 1 duplicates FROM trades "
+            f"SELECT count() - 1 duplicates FROM {identifier} "
             "GROUP BY timestamp, exchange, symbol, side, price, quantity, trade_id)"
         )[0][0]
         findings.append(result("questdb", "qdb", table, "invalid_price_quantity", int(invalid_numeric)))
@@ -231,11 +233,11 @@ def audit_questdb_table(client: DBClient, table: str) -> List[AuditResult]:
         findings.append(result("questdb", "qdb", table, "exact_duplicate", int(duplicate)))
     else:
         invalid = client.query(
-            "SELECT count() FROM orderbook_delta WHERE price <= 0 OR qty < 0 "
+            f"SELECT count() FROM {identifier} WHERE price <= 0 OR qty < 0 "
             "OR price != price OR qty != qty OR side NOT IN ('ask', 'bid') "
             "OR update_type NOT IN ('snapshot', 'delta')"
         )[0][0]
-        zero_sequence = client.query("SELECT count() FROM orderbook_delta WHERE sequence = 0")[0][0]
+        zero_sequence = client.query(f"SELECT count() FROM {identifier} WHERE sequence = 0")[0][0]
         findings.append(result("questdb", "qdb", table, "invalid_orderbook_delta", int(invalid)))
         findings.append(AuditResult("questdb", "qdb", table, "zero_sequence", "warn" if zero_sequence else "pass", int(zero_sequence), "zero may mean missing sequence"))
     return findings
@@ -244,11 +246,27 @@ def audit_questdb_table(client: DBClient, table: str) -> List[AuditResult]:
 def audit_questdb(client: DBClient) -> List[AuditResult]:
     tables = {str(row[0]) for row in client.query("SELECT table_name FROM tables()")}
     findings: List[AuditResult] = []
-    for table in ("trades", "orderbook_delta"):
-        if table not in tables:
-            findings.append(AuditResult("questdb", "qdb", table, "table_exists", "fail", 1, "table not found"))
-        else:
-            findings.extend(audit_questdb_table(client, table))
+    if "market_data_catalog" not in tables:
+        return [AuditResult("questdb", "qdb", "market_data_catalog", "table_exists", "fail", 1, "table not found")]
+
+    catalog_rows = client.query(
+        "SELECT exchange, symbol, trades_table, orderbook_delta_table FROM market_data_catalog "
+        "LATEST ON timestamp PARTITION BY exchange, symbol"
+    )
+    for exchange, symbol, trades_table, orderbook_table in catalog_rows:
+        expected = questdb_market_tables(str(exchange), str(symbol))
+        routes = ((str(trades_table), expected.trades_table, "trades"), (str(orderbook_table), expected.orderbook_delta_table, "orderbook_delta"))
+        for table, expected_table, kind in routes:
+            if table != expected_table:
+                findings.append(AuditResult("questdb", "qdb", table, "catalog_route", "fail", 1, f"expected {expected_table}"))
+            elif table not in tables:
+                findings.append(AuditResult("questdb", "qdb", table, "table_exists", "fail", 1, "table not found"))
+            else:
+                findings.extend(audit_questdb_table(client, table, kind))
+
+    for legacy_table in ("trades", "orderbook_delta"):
+        if legacy_table in tables:
+            findings.append(AuditResult("questdb", "qdb", legacy_table, "legacy_table", "info", None, "read-only; excluded from current market audit"))
     return findings
 
 
@@ -315,7 +333,7 @@ def main() -> int:
         try:
             questdb_client = connect_questdb(
                 environment.get("QUESTDB_SQL_HOST", environment.get("QUESTDB_HOST", "127.0.0.1")),
-                int(environment.get("QUESTDB_SQL_PORT", "8812")),
+                int(environment.get("QUESTDB_SQL_PORT", "18812")),
                 environment.get("QUESTDB_SQL_USER", "admin"),
                 environment.get("QUESTDB_SQL_PASSWORD", "quest"),
                 environment.get("QUESTDB_SQL_DATABASE", "qdb"),

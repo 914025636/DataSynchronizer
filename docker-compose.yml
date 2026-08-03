@@ -1,11 +1,21 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: datasynchronizer-redis
+    ports:
+      - '6380:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
   questdb:
     image: questdb/questdb:latest
     container_name: questdb
     ports:
       - '9000:9000'   # HTTP REST API + ILP over HTTP
       - '9009:9009'   # InfluxDB Line Protocol (TCP)
-      - '8812:8812'   # PostgreSQL wire protocol
+      - '18812:8812'  # PostgreSQL wire protocol (8812 is reserved by Windows on some hosts)
     volumes:
       - questdb_data:/var/lib/questdb
     environment:
@@ -42,5 +52,6 @@ services:
     restart: unless-stopped
 
 volumes:
+  redis_data:
   questdb_data:
   grafana_data:

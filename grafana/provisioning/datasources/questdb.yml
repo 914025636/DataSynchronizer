@@ -5,7 +5,7 @@ datasources:
     uid: questdb
     type: postgres
     access: proxy
-    url: host.docker.internal:8812
+    url: host.docker.internal:18812
     user: admin
     secureJsonData:
       password: quest

@@ -75,7 +75,7 @@ if (-not (Test-DockerDaemon)) {
 Push-Location $projectDirectory
 try {
     Write-Host 'Starting the QuestDB Compose service...'
-    & docker compose up -d questdb
+    & docker compose up -d redis questdb
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose up failed with exit code $LASTEXITCODE."
     }
@@ -100,11 +100,18 @@ if ($dataMount.Type -ne 'volume' -or $dataMount.Name -notlike '*questdb_data') {
 
 $ready = Wait-Until -TimeoutSeconds $QuestDBTimeoutSeconds -Condition {
     (Test-TcpPort -HostName '127.0.0.1' -Port 9009) -and
-    (Test-TcpPort -HostName '127.0.0.1' -Port 8812) -and
+    (Test-TcpPort -HostName '127.0.0.1' -Port 18812) -and
     (Test-TcpPort -HostName '127.0.0.1' -Port 9000)
 }
 if (-not $ready) {
-    throw "QuestDB did not expose ports 9000, 9009 and 8812 within $QuestDBTimeoutSeconds seconds. Run 'docker compose logs questdb' for details."
+    throw "QuestDB did not expose ports 9000, 9009 and 18812 within $QuestDBTimeoutSeconds seconds. Run 'docker compose logs questdb' for details."
 }
 
-Write-Host "QuestDB is ready. Container=$($container[0].Name.TrimStart('/')); volume=$($dataMount.Name); ILP=127.0.0.1:9009; SQL=127.0.0.1:8812; Web=http://127.0.0.1:9000"
+$redisReady = Wait-Until -TimeoutSeconds $QuestDBTimeoutSeconds -Condition {
+    Test-TcpPort -HostName '127.0.0.1' -Port 6380
+}
+if (-not $redisReady) {
+    throw "Redis did not expose port 6380 within $QuestDBTimeoutSeconds seconds. Run 'docker compose logs redis' for details."
+}
+
+Write-Host "QuestDB is ready. Container=$($container[0].Name.TrimStart('/')); volume=$($dataMount.Name); ILP=127.0.0.1:9009; SQL=127.0.0.1:18812; Web=http://127.0.0.1:9000; Redis=127.0.0.1:6380"

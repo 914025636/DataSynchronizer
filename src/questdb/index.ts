@@ -1,5 +1,6 @@
 import { Sender } from '@questdb/nodejs-client';
 import { logger } from '../logger';
+import { questdbMarketTables, QuestDBMarketTables } from './table_names';
 
 const DEFAULT_PORT_BY_PROTOCOL: Record<string, number> = {
   http: 9000,
@@ -10,21 +11,34 @@ const DEFAULT_PORT_BY_PROTOCOL: Record<string, number> = {
 
 const QUESTDB_PROTOCOL = (process.env.QUESTDB_PROTOCOL || 'tcp').toLowerCase();
 const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
-const QUESTDB_PORT = process.env.QUESTDB_PORT === undefined
-  ? (DEFAULT_PORT_BY_PROTOCOL[QUESTDB_PROTOCOL] || DEFAULT_PORT_BY_PROTOCOL.tcp)
-  : parseInt(process.env.QUESTDB_PORT, 10);
+const QUESTDB_PORT =
+  process.env.QUESTDB_PORT === undefined
+    ? DEFAULT_PORT_BY_PROTOCOL[QUESTDB_PROTOCOL] || DEFAULT_PORT_BY_PROTOCOL.tcp
+    : parseInt(process.env.QUESTDB_PORT, 10);
 
 const configStr = `${QUESTDB_PROTOCOL}::addr=${QUESTDB_HOST}:${QUESTDB_PORT};auto_flush=off;`;
 const flushInterval = Number(process.env.QUESTDB_FLUSH_INTERVAL_MS || 500);
+const flushTimeout = Number(process.env.QUESTDB_FLUSH_TIMEOUT_MS || 10000);
 
 let sender: Sender | null = null;
 let initPromise: Promise<Sender> | null = null;
-let writeQueue: Promise<void> = Promise.resolve();
 let closing = false;
 let lastFlushTime = Date.now();
 let loggedFirstTradeWrite = false;
 let loggedFirstOrderbookWrite = false;
 let resetPromise: Promise<void> | null = null;
+const registeredMarkets = new Set<string>();
+const maxPendingWrites = Number(process.env.QUESTDB_MAX_PENDING_WRITES || 2000);
+const writeBatchSize = Number(process.env.QUESTDB_WRITE_BATCH_SIZE || 50);
+
+type WriteTask = {
+  write: (activeSender: Sender) => void;
+  resolve: () => void;
+  reject: (error: unknown) => void;
+};
+
+const pendingWrites: WriteTask[] = [];
+let drainPromise: Promise<void> | null = null;
 
 const errorWindowMs = Number(process.env.QUESTDB_ERROR_WINDOW_MS || 30000);
 
@@ -38,7 +52,24 @@ const errorBuckets = new Map<string, ErrorBucket>();
 
 function isTransportDisconnected(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /TCP transport is not connected|transport is not connected|EPIPE|ECONNRESET|socket hang up|connection.*closed/i.test(message);
+  return /TCP transport is not connected|transport is not connected|EPIPE|ECONNRESET|socket hang up|connection.*closed|QuestDB flush timed out/i.test(
+    message,
+  );
+}
+
+async function flushWithTimeout(activeSender: Sender): Promise<void> {
+  let timeout: NodeJS.Timeout | null = null;
+
+  try {
+    await Promise.race([
+      activeSender.flush(),
+      new Promise<never>((resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error(`QuestDB flush timed out after ${flushTimeout}ms`)), flushTimeout);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 function logRateLimitedError(key: string, message: string, error: unknown): void {
@@ -78,6 +109,7 @@ async function resetSender(reason: string): Promise<void> {
     const staleSender = sender;
     sender = null;
     initPromise = null;
+    registeredMarkets.clear();
 
     if (staleSender) {
       try {
@@ -97,23 +129,27 @@ async function resetSender(reason: string): Promise<void> {
   }
 }
 
-async function writeWithReconnect(write: (activeSender: Sender) => Promise<void>): Promise<void> {
+async function writeBatchWithReconnect(tasks: WriteTask[], flush: boolean): Promise<void> {
   let retried = false;
 
   while (!closing) {
     const activeSender = await getSender();
 
     try {
-      await write(activeSender);
-      if (Date.now() - lastFlushTime >= flushInterval) {
-        await activeSender.flush();
+      tasks.forEach((task) => task.write(activeSender));
+      if (flush) {
+        await flushWithTimeout(activeSender);
         lastFlushTime = Date.now();
       }
       return;
     } catch (error) {
       if (!retried && isTransportDisconnected(error) && !closing) {
         retried = true;
-        logRateLimitedError('questdb-transport-disconnected', 'QuestDB transport disconnected, resetting sender and retrying write', error);
+        logRateLimitedError(
+          'questdb-transport-disconnected',
+          'QuestDB transport disconnected, resetting sender and retrying write',
+          error,
+        );
         await resetSender('transport disconnected');
         continue;
       }
@@ -122,14 +158,56 @@ async function writeWithReconnect(write: (activeSender: Sender) => Promise<void>
   }
 }
 
-function enqueueWrite(write: (activeSender: Sender) => Promise<void>): Promise<void> {
-  const queuedWrite = writeQueue.then(async () => {
-    if (closing) return;
-    await writeWithReconnect(write);
-  });
+const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+const wait = (delay: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, delay));
 
-  writeQueue = queuedWrite.catch(() => undefined);
-  return queuedWrite;
+async function drainWriteQueue(): Promise<void> {
+  while (!closing) {
+    if (pendingWrites.length === 0) {
+      const remainingFlushDelay = Math.max(0, flushInterval - (Date.now() - lastFlushTime));
+      if (remainingFlushDelay > 0) await wait(remainingFlushDelay);
+      if (pendingWrites.length === 0) {
+        await writeBatchWithReconnect([], true);
+        return;
+      }
+    }
+
+    const batch = pendingWrites.splice(0, writeBatchSize);
+    const shouldFlush = Date.now() - lastFlushTime >= flushInterval;
+
+    try {
+      await writeBatchWithReconnect(batch, shouldFlush);
+      batch.forEach((task) => task.resolve());
+    } catch (error) {
+      batch.forEach((task) => task.reject(error));
+    }
+
+    await yieldToEventLoop();
+  }
+}
+
+function startWriteQueueDrain(): void {
+  if (drainPromise) return;
+
+  drainPromise = drainWriteQueue().finally(() => {
+    drainPromise = null;
+    if (!closing && pendingWrites.length > 0) startWriteQueueDrain();
+  });
+}
+
+function enqueueWrite(write: (activeSender: Sender) => void): Promise<void> {
+  if (closing) return Promise.resolve();
+
+  if (pendingWrites.length >= maxPendingWrites) {
+    const error = new Error(`QuestDB write queue full (${pendingWrites.length}/${maxPendingWrites})`);
+    logRateLimitedError('questdb-write-queue-full', 'QuestDB write queue full; dropping newest write', error);
+    return Promise.reject(error);
+  }
+
+  return new Promise((resolve, reject) => {
+    pendingWrites.push({ write, resolve, reject });
+    startWriteQueueDrain();
+  });
 }
 
 async function getSender(): Promise<Sender> {
@@ -150,6 +228,16 @@ async function getSender(): Promise<Sender> {
   return initPromise;
 }
 
+function registerMarket(activeSender: Sender, exchange: string, symbol: string, tables: QuestDBMarketTables): void {
+  activeSender
+    .table('market_data_catalog')
+    .symbol('exchange', exchange)
+    .symbol('symbol', symbol)
+    .stringColumn('trades_table', tables.tradesTable)
+    .stringColumn('orderbook_delta_table', tables.orderbookDeltaTable)
+    .at(Date.now(), 'ms');
+}
+
 export const QuestDBWriter = {
   /**
    * 写入逐笔成交数据
@@ -167,9 +255,12 @@ export const QuestDBWriter = {
     timestamp: number,
   ): Promise<void> => {
     try {
-      await enqueueWrite(async (activeSender) => {
-        await activeSender
-          .table('trades')
+      const tables = questdbMarketTables(exchange, symbol);
+      await enqueueWrite((activeSender) => {
+        const shouldRegister = !registeredMarkets.has(tables.marketKey);
+        if (shouldRegister) registerMarket(activeSender, exchange, symbol, tables);
+        activeSender
+          .table(tables.tradesTable)
           .symbol('exchange', exchange)
           .symbol('symbol', symbol)
           .symbol('side', side)
@@ -177,6 +268,7 @@ export const QuestDBWriter = {
           .floatColumn('quantity', parseFloat(quantity))
           .stringColumn('trade_id', tradeId)
           .at(timestamp, 'ms');
+        if (shouldRegister) registeredMarkets.add(tables.marketKey);
         if (!loggedFirstTradeWrite) {
           loggedFirstTradeWrite = true;
           logger.info('QuestDB completed first trade write');
@@ -184,6 +276,7 @@ export const QuestDBWriter = {
       });
     } catch (e) {
       logRateLimitedError('questdb-write-trade', 'QuestDB writeTrade error', e);
+      throw e;
     }
   },
 
@@ -192,7 +285,7 @@ export const QuestDBWriter = {
    * qty = 0 表示该档位被删除
    * 表结构（自动创建）：
    *   orderbook_delta(ts TIMESTAMP, exchange SYMBOL, symbol SYMBOL, side SYMBOL,
-  *                   update_type SYMBOL, price DOUBLE, qty DOUBLE, sequence DOUBLE)
+   *                   update_type SYMBOL, price DOUBLE, qty DOUBLE, sequence DOUBLE)
    */
   writeOrderbookDelta: async (
     exchange: string,
@@ -204,10 +297,13 @@ export const QuestDBWriter = {
     updateType: 'snapshot' | 'delta' = 'delta',
   ): Promise<void> => {
     try {
-      await enqueueWrite(async (activeSender) => {
+      const tables = questdbMarketTables(exchange, symbol);
+      await enqueueWrite((activeSender) => {
+        const shouldRegister = !registeredMarkets.has(tables.marketKey);
+        if (shouldRegister) registerMarket(activeSender, exchange, symbol, tables);
         for (const [price, qty] of asks) {
-          await activeSender
-            .table('orderbook_delta')
+          activeSender
+            .table(tables.orderbookDeltaTable)
             .symbol('exchange', exchange)
             .symbol('symbol', symbol)
             .symbol('side', 'ask')
@@ -218,8 +314,8 @@ export const QuestDBWriter = {
             .at(timestamp, 'ms');
         }
         for (const [price, qty] of bids) {
-          await activeSender
-            .table('orderbook_delta')
+          activeSender
+            .table(tables.orderbookDeltaTable)
             .symbol('exchange', exchange)
             .symbol('symbol', symbol)
             .symbol('side', 'bid')
@@ -229,6 +325,7 @@ export const QuestDBWriter = {
             .floatColumn('sequence', sequence || 0)
             .at(timestamp, 'ms');
         }
+        if (shouldRegister) registeredMarkets.add(tables.marketKey);
         if (!loggedFirstOrderbookWrite) {
           loggedFirstOrderbookWrite = true;
           logger.info('QuestDB completed first orderbook write');
@@ -236,6 +333,7 @@ export const QuestDBWriter = {
       });
     } catch (e) {
       logRateLimitedError('questdb-write-orderbook', 'QuestDB writeOrderbookDelta error', e);
+      throw e;
     }
   },
 
@@ -243,12 +341,17 @@ export const QuestDBWriter = {
    * 显式刷新缓冲区（进程退出前调用）
    */
   flush: async (): Promise<void> => {
-    await writeQueue;
+    while (drainPromise || pendingWrites.length > 0) {
+      if (drainPromise) await drainPromise;
+      else startWriteQueueDrain();
+    }
     if (sender) {
       try {
-        await sender.flush();
+        await flushWithTimeout(sender);
+        lastFlushTime = Date.now();
       } catch (e) {
         logRateLimitedError('questdb-flush', 'QuestDB flush error', e);
+        throw e;
       }
     }
   },
@@ -259,8 +362,11 @@ export const QuestDBWriter = {
   close: async (): Promise<void> => {
     if (sender) {
       try {
+        while (drainPromise || pendingWrites.length > 0) {
+          if (drainPromise) await drainPromise;
+          else startWriteQueueDrain();
+        }
         closing = true;
-        await writeQueue;
         const current = sender;
         await current.flush();
         await current.close();

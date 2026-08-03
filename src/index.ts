@@ -12,6 +12,7 @@ import PriceTickersAPI from './pricetickers';
 import WardenClass, { parseWatchPair } from './warden';
 import { CCXT_API } from './exchange/ccxt_controller';
 import { QuestDBWriter } from './questdb';
+import { closeMarketStreamProducers } from './redis/market_stream_client';
 
 // Load Dotenv variables
 const {
@@ -44,6 +45,7 @@ const shutdown = async (signal: string): Promise<void> => {
 
   shuttingDown = true;
   logger.info(`Received ${signal}, flushing QuestDB data`);
+  await closeMarketStreamProducers();
   await QuestDBWriter.close();
   process.exit(0);
 };

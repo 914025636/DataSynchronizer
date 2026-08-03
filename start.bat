@@ -51,17 +51,15 @@ if not exist "node_modules\" (
     echo.
 )
 
-:: 检查 build 目录是否存在
-if not exist "build\" (
-    echo [提示] 未检测到 build 目录，正在编译 TypeScript...
-    call npm run build
-    if %errorlevel% neq 0 (
-        echo [错误] 编译失败
-        pause
-        exit /b 1
-    )
-    echo.
+:: 每次启动前编译，避免运行旧的 build 产物
+echo [提示] 正在编译 TypeScript...
+call npm run build
+if %errorlevel% neq 0 (
+    echo [错误] 编译失败
+    pause
+    exit /b 1
 )
+echo.
 
 :: 创建日志目录
 if not exist "%LOG_DIR%\" mkdir "%LOG_DIR%"
@@ -112,7 +110,6 @@ set EXIT_CODE=%errorlevel%
 
 call :GET_TIMESTAMP END_TS
 set /a RUN_DURATION=!END_TS! - !START_TS!
-if !RUN_DURATION! lss 0 set /a RUN_DURATION+=86400
 
 echo.
 echo [守护] 进程已退出 ^| 退出码=%EXIT_CODE% ^| 运行时长=!RUN_DURATION!s
@@ -168,11 +165,8 @@ timeout /t %QUESTDB_WAIT_INTERVAL% /nobreak >nul
 goto :QUESTDB_WAIT_LOOP
 
 :GET_TIMESTAMP
-:: 将当前时间转为当天秒数，跨午夜时由调用方补偿 86400 秒
-for /f "tokens=1-4 delims=:.," %%a in ("%time%") do (
-    set /a "_ts=(((1%%a-100)*60)+(1%%b-100))*60+(1%%c-100)"
-)
-set %1=!_ts!
+:: 使用 Unix 秒，避免午夜前导空格和跨日导致批处理算术解析失败
+for /f %%a in ('powershell -NoProfile -Command "[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()"') do set %1=%%a
 goto :eof
 
 :END

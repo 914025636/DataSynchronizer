@@ -67,7 +67,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp AS time, avg(price) AS value, exchange || ' ' || symbol AS metric FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) SAMPLE BY 10s ALIGN TO CALENDAR;",
+          "rawSql": "SELECT timestamp AS time, avg(price) AS value, exchange || ' ' || symbol AS metric FROM \"${trades_table:raw}\" WHERE $__timeFilter(timestamp) SAMPLE BY 10s ALIGN TO CALENDAR;",
           "refId": "A"
         }
       ],
@@ -110,7 +110,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT datediff('s', max(timestamp), now()) AS seconds_since_last_trade FROM trades WHERE exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote});",
+          "rawSql": "SELECT datediff('s', max(timestamp), now()) AS seconds_since_last_trade FROM \"${trades_table:raw}\";",
           "refId": "A"
         }
       ],
@@ -152,7 +152,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT count() AS trades_in_range FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote});",
+          "rawSql": "SELECT count() AS trades_in_range FROM \"${trades_table:raw}\" WHERE $__timeFilter(timestamp);",
           "refId": "A"
         }
       ],
@@ -209,7 +209,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp AS time, sum(quantity) AS value, side AS metric FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) SAMPLE BY 1m ALIGN TO CALENDAR;",
+          "rawSql": "SELECT timestamp AS time, sum(quantity) AS value, side AS metric FROM \"${trades_table:raw}\" WHERE $__timeFilter(timestamp) SAMPLE BY 1m ALIGN TO CALENDAR;",
           "refId": "A"
         }
       ],
@@ -263,7 +263,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp AS time, count() AS value, exchange AS metric FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) SAMPLE BY 1m ALIGN TO CALENDAR;",
+          "rawSql": "SELECT timestamp AS time, count() AS value, exchange AS metric FROM \"${trades_table:raw}\" WHERE $__timeFilter(timestamp) SAMPLE BY 1m ALIGN TO CALENDAR;",
           "refId": "A"
         }
       ],
@@ -309,7 +309,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp, exchange, symbol, side, price, quantity, trade_id FROM trades WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) ORDER BY timestamp DESC LIMIT 200;",
+          "rawSql": "SELECT timestamp, exchange, symbol, side, price, quantity, trade_id FROM \"${trades_table:raw}\" WHERE $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 200;",
           "refId": "A"
         }
       ],
@@ -366,7 +366,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp AS time, count() AS value, side AS metric FROM orderbook_delta WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) SAMPLE BY 10s ALIGN TO CALENDAR;",
+          "rawSql": "SELECT timestamp AS time, count() AS value, side AS metric FROM \"${orderbook_delta_table:raw}\" WHERE $__timeFilter(timestamp) SAMPLE BY 10s ALIGN TO CALENDAR;",
           "refId": "A"
         }
       ],
@@ -412,7 +412,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT timestamp, exchange, symbol, side, update_type, price, qty, sequence FROM orderbook_delta WHERE $__timeFilter(timestamp) AND exchange IN (${exchange:singlequote}) AND symbol IN (${symbol:singlequote}) ORDER BY timestamp DESC LIMIT 200;",
+          "rawSql": "SELECT timestamp, exchange, symbol, side, update_type, price, qty, sequence FROM \"${orderbook_delta_table:raw}\" WHERE $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 200;",
           "refId": "A"
         }
       ],
@@ -426,36 +426,53 @@
   "templating": {
     "list": [
       {
-        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "current": {},
         "datasource": { "type": "postgres", "uid": "questdb" },
-        "definition": "SELECT DISTINCT exchange FROM orderbook_delta ORDER BY exchange",
+        "definition": "SELECT exchange || ' ' || symbol AS __text, trades_table AS __value FROM (SELECT exchange, symbol, trades_table FROM market_data_catalog LATEST ON timestamp PARTITION BY exchange, symbol) ORDER BY exchange, symbol",
         "hide": 0,
-        "includeAll": true,
-        "label": "Exchange",
-        "multi": true,
-        "name": "exchange",
+        "includeAll": false,
+        "label": "Market",
+        "multi": false,
+        "name": "market",
         "options": [],
-        "query": "SELECT DISTINCT exchange FROM orderbook_delta ORDER BY exchange",
+        "query": "SELECT exchange || ' ' || symbol AS __text, trades_table AS __value FROM (SELECT exchange, symbol, trades_table FROM market_data_catalog LATEST ON timestamp PARTITION BY exchange, symbol) ORDER BY exchange, symbol",
         "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
+        "regex": "/^[a-z0-9_]{1,127}$/",
+        "skipUrlSync": true,
         "sort": 1,
         "type": "query"
       },
       {
-        "current": { "selected": true, "text": ["All"], "value": ["$__all"] },
+        "current": {},
         "datasource": { "type": "postgres", "uid": "questdb" },
-        "definition": "SELECT DISTINCT symbol FROM orderbook_delta WHERE exchange IN (${exchange:singlequote}) ORDER BY symbol",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Symbol",
-        "multi": true,
-        "name": "symbol",
+        "definition": "SELECT trades_table FROM (SELECT trades_table FROM market_data_catalog LATEST ON timestamp PARTITION BY exchange, symbol) WHERE trades_table = '${market:raw}'",
+        "hide": 2,
+        "includeAll": false,
+        "label": "Trades table",
+        "multi": false,
+        "name": "trades_table",
         "options": [],
-        "query": "SELECT DISTINCT symbol FROM orderbook_delta WHERE exchange IN (${exchange:singlequote}) ORDER BY symbol",
+        "query": "SELECT trades_table FROM (SELECT trades_table FROM market_data_catalog LATEST ON timestamp PARTITION BY exchange, symbol) WHERE trades_table = '${market:raw}'",
         "refresh": 2,
-        "regex": "",
-        "skipUrlSync": false,
+        "regex": "/^[a-z0-9_]{1,127}$/",
+        "skipUrlSync": true,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": { "type": "postgres", "uid": "questdb" },
+        "definition": "SELECT orderbook_delta_table FROM (SELECT trades_table, orderbook_delta_table FROM market_data_catalog LATEST ON timestamp PARTITION BY exchange, symbol) WHERE trades_table = '${market:raw}'",
+        "hide": 2,
+        "includeAll": false,
+        "label": "Orderbook table",
+        "multi": false,
+        "name": "orderbook_delta_table",
+        "options": [],
+        "query": "SELECT orderbook_delta_table FROM (SELECT trades_table, orderbook_delta_table FROM market_data_catalog LATEST ON timestamp PARTITION BY exchange, symbol) WHERE trades_table = '${market:raw}'",
+        "refresh": 2,
+        "regex": "/^[a-z0-9_]{1,127}$/",
+        "skipUrlSync": true,
         "sort": 1,
         "type": "query"
       }
