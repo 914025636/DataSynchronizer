@@ -16,7 +16,7 @@ function readableComponent(value: string): string {
   );
 }
 
-function tableName(exchange: string, symbol: string, suffix: string): string {
+export function marketTableName(exchange: string, symbol: string, suffix: string): string {
   const [marketSymbol, settlementCurrency] = symbol.split(':', 2);
   const marketType = settlementCurrency ? 'swap' : 'spot';
   const readable = `${readableComponent(exchange)}_${readableComponent(marketSymbol)}`;
@@ -27,11 +27,11 @@ function tableName(exchange: string, symbol: string, suffix: string): string {
 }
 
 export function questdbTradesTableName(exchange: string, symbol: string): string {
-  return tableName(exchange, symbol, 'trades');
+  return marketTableName(exchange, symbol, 'trades');
 }
 
 export function questdbOrderbookDeltaTableName(exchange: string, symbol: string): string {
-  return tableName(exchange, symbol, 'orderbook_delta');
+  return marketTableName(exchange, symbol, 'orderbook_delta');
 }
 
 export function questdbMarketTables(exchange: string, symbol: string): QuestDBMarketTables {
