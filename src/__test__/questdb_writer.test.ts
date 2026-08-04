@@ -72,6 +72,28 @@ describe('QuestDBWriter market routing', () => {
     expect(tableCalls[3]).toBe('okx_btc_usdt_swap_trades');
   });
 
+  it('routes layered orderbooks to exact and aggregate tables', async () => {
+    await QuestDBWriter.writeLayeredOrderbook(
+      'bybit',
+      'BTC/USDT',
+      [[101, 2]],
+      [[99, 3]],
+      [[110, 120, 8]],
+      [[80, 90, 7]],
+      1200,
+      12,
+      'second_delta',
+      100,
+      0.1,
+      100,
+      1,
+      42,
+    );
+
+    expect(tableCalls).toContain('bybit_btc_usdt_spot_orderbook_1s_exact_delta');
+    expect(tableCalls).toContain('bybit_btc_usdt_spot_orderbook_1s_depth_delta');
+  });
+
   it('resets the sender and retries when a TCP flush stalls', async () => {
     sender.flush.mockImplementationOnce(() => new Promise(() => undefined));
 

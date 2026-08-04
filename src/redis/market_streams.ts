@@ -1,8 +1,9 @@
 export const MARKET_STREAM_SCHEMA_VERSION = 1;
+export const ORDERBOOK_STREAM_SCHEMA_VERSION = 2;
 
 export const MARKET_STREAMS = {
   trades: process.env.REDIS_TRADE_STREAM || 'market:trades:v1',
-  orderbook: process.env.REDIS_ORDERBOOK_STREAM || 'market:orderbook:v1',
+  orderbook: process.env.REDIS_ORDERBOOK_STREAM || 'market:orderbook:v2',
 };
 
 export type TradeStreamEvent = {
@@ -19,16 +20,23 @@ export type TradeStreamEvent = {
 };
 
 export type OrderbookStreamEvent = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   eventType: 'orderbook';
   exchange: string;
   symbol: string;
   eventTime: number;
   ingestedAt: number;
-  asks: [number, number][];
-  bids: [number, number][];
+  exactAsks: [number, number][];
+  exactBids: [number, number][];
+  aggregateAsks: [number, number, number][];
+  aggregateBids: [number, number, number][];
   sequence?: number;
-  updateType: 'snapshot' | 'delta';
+  updateType: 'snapshot' | 'second_delta';
+  exactDepth: number;
+  tickSize: number;
+  referencePrice: number;
+  aggregationVersion: number;
+  sourceUpdateCount: number;
 };
 
 export type MarketStreamEvent = TradeStreamEvent | OrderbookStreamEvent;
@@ -45,7 +53,6 @@ function isPriceLevel(value: unknown): value is [number, number] {
 
 function hasCommonFields(value: { [key: string]: unknown }): boolean {
   return (
-    value.schemaVersion === MARKET_STREAM_SCHEMA_VERSION &&
     typeof value.exchange === 'string' &&
     typeof value.symbol === 'string' &&
     isNumber(value.eventTime) &&
@@ -71,6 +78,7 @@ export function parseMarketEvent(fields: string[]): MarketStreamEvent {
 
   if (
     event.eventType === 'trade' &&
+    event.schemaVersion === MARKET_STREAM_SCHEMA_VERSION &&
     typeof event.side === 'string' &&
     typeof event.price === 'string' &&
     typeof event.quantity === 'string' &&
@@ -81,12 +89,22 @@ export function parseMarketEvent(fields: string[]): MarketStreamEvent {
 
   if (
     event.eventType === 'orderbook' &&
-    Array.isArray(event.asks) &&
-    event.asks.every(isPriceLevel) &&
-    Array.isArray(event.bids) &&
-    event.bids.every(isPriceLevel) &&
+    event.schemaVersion === ORDERBOOK_STREAM_SCHEMA_VERSION &&
+    Array.isArray(event.exactAsks) &&
+    event.exactAsks.every(isPriceLevel) &&
+    Array.isArray(event.exactBids) &&
+    event.exactBids.every(isPriceLevel) &&
+    Array.isArray(event.aggregateAsks) &&
+    event.aggregateAsks.every((level) => Array.isArray(level) && level.length === 3 && level.every(isNumber)) &&
+    Array.isArray(event.aggregateBids) &&
+    event.aggregateBids.every((level) => Array.isArray(level) && level.length === 3 && level.every(isNumber)) &&
     (event.sequence === undefined || isNumber(event.sequence)) &&
-    (event.updateType === 'snapshot' || event.updateType === 'delta')
+    (event.updateType === 'snapshot' || event.updateType === 'second_delta') &&
+    isNumber(event.exactDepth) &&
+    isNumber(event.tickSize) &&
+    isNumber(event.referencePrice) &&
+    isNumber(event.aggregationVersion) &&
+    isNumber(event.sourceUpdateCount)
   ) {
     return event as OrderbookStreamEvent;
   }

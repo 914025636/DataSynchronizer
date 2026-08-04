@@ -1,5 +1,6 @@
 import {
   MARKET_STREAM_SCHEMA_VERSION,
+  ORDERBOOK_STREAM_SCHEMA_VERSION,
   OrderbookStreamEvent,
   parseMarketEvent,
   serializeMarketEvent,
@@ -26,16 +27,23 @@ describe('market stream event contract', () => {
 
   it('round-trips an orderbook event', () => {
     const event: OrderbookStreamEvent = {
-      schemaVersion: MARKET_STREAM_SCHEMA_VERSION,
+      schemaVersion: ORDERBOOK_STREAM_SCHEMA_VERSION,
       eventType: 'orderbook',
       exchange: 'okx',
       symbol: 'BTC/USDT:USDT',
       eventTime: 2000,
       ingestedAt: 2001,
-      asks: [[101, 3]],
-      bids: [[99, 4]],
+      exactAsks: [[101, 3]],
+      exactBids: [[99, 4]],
+      aggregateAsks: [[110, 120, 8]],
+      aggregateBids: [[80, 90, 7]],
       sequence: 12,
-      updateType: 'delta',
+      updateType: 'second_delta',
+      exactDepth: 100,
+      tickSize: 0.1,
+      referencePrice: 100,
+      aggregationVersion: 1,
+      sourceUpdateCount: 42,
     };
 
     expect(parseMarketEvent(serializeMarketEvent(event))).toEqual(event);

@@ -42,6 +42,21 @@ interface OrderBookDepth {
   updateType: 'snapshot' | 'delta';
 }
 
+interface PersistedOrderBookDepth {
+  symbol: string;
+  exactAsks: [number, number][];
+  exactBids: [number, number][];
+  aggregateAsks: [number, number, number][];
+  aggregateBids: [number, number, number][];
+  timestamp: number;
+  sequence?: number;
+  updateType: 'snapshot' | 'second_delta';
+  exactDepth: number;
+  tickSize: number;
+  referencePrice: number;
+  sourceUpdateCount: number;
+}
+
 class OrderbookEmitter {
   constructor() {
     // Event listeners
@@ -61,26 +76,6 @@ class OrderbookEmitter {
         }
 
         const { symbol, asks, bids } = depth;
-
-        // 写入 QuestDB 增量数据（每条 WebSocket 推送的价格档位变化）
-        TradepairQueries.idToSymbol(exchange, symbol)
-          .then((ccxtSymbol) => {
-            if (ccxtSymbol) {
-              return marketStreamProducer.append(MARKET_STREAMS.orderbook, {
-                schemaVersion: 1,
-                eventType: 'orderbook',
-                exchange,
-                symbol: ccxtSymbol,
-                eventTime: depth.timestamp || Date.now(),
-                ingestedAt: Date.now(),
-                asks: asks as [number, number][],
-                bids: bids as [number, number][],
-                sequence: depth.sequence,
-                updateType: depth.updateType,
-              });
-            }
-          })
-          .catch((e) => logStreamError(e));
 
         if (exchangeOrderbooks.hasOrderBook(symbol)) {
           try {
@@ -145,6 +140,36 @@ class OrderbookEmitter {
         //     }
         //   }
         // }
+      },
+    );
+
+    Emitter.on(
+      EMITTER_EVENTS.OrderBookPersist,
+      (exchange: string, depth: PersistedOrderBookDepth): void => {
+        TradepairQueries.idToSymbol(exchange.toLowerCase(), depth.symbol)
+          .then((ccxtSymbol) => {
+            if (!ccxtSymbol) return;
+            return marketStreamProducer.append(MARKET_STREAMS.orderbook, {
+              schemaVersion: 2,
+              eventType: 'orderbook',
+              exchange: exchange.toLowerCase(),
+              symbol: ccxtSymbol,
+              eventTime: depth.timestamp,
+              ingestedAt: Date.now(),
+              exactAsks: depth.exactAsks,
+              exactBids: depth.exactBids,
+              aggregateAsks: depth.aggregateAsks,
+              aggregateBids: depth.aggregateBids,
+              sequence: depth.sequence,
+              updateType: depth.updateType,
+              exactDepth: depth.exactDepth,
+              tickSize: depth.tickSize,
+              referencePrice: depth.referencePrice,
+              aggregationVersion: 1,
+              sourceUpdateCount: depth.sourceUpdateCount,
+            });
+          })
+          .catch((error) => logStreamError(error));
       },
     );
 
