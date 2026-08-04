@@ -3,6 +3,7 @@ import * as ccxt from 'ccxt';
 import { EMITTER_EVENTS } from '../../constants';
 import { Emitter } from '../../emitter/emitter';
 import { logger } from '../../logger';
+import { configureCcxtTransport, getCcxtProxy } from '../ccxt_proxy';
 import {
   createLayeredOrderbook,
   diffLayeredOrderbook,
@@ -133,14 +134,38 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
     throw new Error(`${exchangeName} does not support CCXT Pro websocket`);
   }
 
-  const httpsProxy = process.env.CCXT_HTTPS_PROXY?.trim();
-  const wssProxy = process.env.CCXT_WSS_PROXY?.trim();
+  const httpsProxy = getCcxtProxy('CCXT_HTTPS_PROXY', exchangeName);
+  const wssProxy = getCcxtProxy('CCXT_WSS_PROXY', exchangeName);
+  const socksProxy = getCcxtProxy('CCXT_SOCKS_PROXY', exchangeName);
+  const wsSocksProxy = getCcxtProxy('CCXT_WS_SOCKS_PROXY', exchangeName);
+  if (httpsProxy && socksProxy) {
+    throw new Error('Configure only one of CCXT_HTTPS_PROXY or CCXT_SOCKS_PROXY');
+  }
+  if (wssProxy && wsSocksProxy) {
+    throw new Error('Configure only one of CCXT_WSS_PROXY or CCXT_WS_SOCKS_PROXY');
+  }
+  const exchangeOptions =
+    exchangeName === 'bybit' || exchangeName === 'binance'
+      ? {
+          options: {
+            fetchMarkets: {
+              types: Array.from(
+                new Set(symbols.map((symbol) => (symbol.includes(':') ? 'linear' : 'spot'))),
+              ),
+            },
+          },
+        }
+      : {};
   const client = new ExchangeClass({
     enableRateLimit: true,
     newUpdates: true,
     ...(httpsProxy ? { httpsProxy } : {}),
     ...(wssProxy ? { wssProxy } : {}),
+    ...(socksProxy ? { socksProxy } : {}),
+    ...(wsSocksProxy ? { wsSocksProxy } : {}),
+    ...exchangeOptions,
   });
+  configureCcxtTransport(client);
 
   if (!client.has.watchTrades || !client.has.watchOrderBook) {
     throw new Error(`${exchangeName} must support CCXT Pro watchTrades and watchOrderBook`);

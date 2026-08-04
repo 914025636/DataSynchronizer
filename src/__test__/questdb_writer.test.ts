@@ -58,6 +58,10 @@ describe('QuestDBWriter market routing', () => {
     await QuestDBWriter.writeTrade('binance', 'BTC/USDT', 'buy', '100', '1', 'trade-1', 1000);
 
     expect(tableCalls).toEqual(['market_data_catalog', 'binance_btc_usdt_spot_trades']);
+    expect(sender.stringColumn).toHaveBeenCalledWith(
+      'orderbook_delta_table',
+      'binance_btc_usdt_spot_orderbook_1s_exact_delta',
+    );
   });
 
   it('reuses the catalog registration and routes orderbook rows by market', async () => {

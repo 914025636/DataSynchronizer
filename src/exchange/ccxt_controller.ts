@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as ccxt from 'ccxt';
 import { logger } from '../logger';
+import { configureCcxtTransport, getCcxtProxy } from './ccxt_proxy';
 
 type CcxtInstance = {
   exchangeName: string;
@@ -11,10 +12,18 @@ export type MarketType = 'spot' | 'swap';
 
 type ExchangeConstructor = new (config?: Record<string, unknown>) => ccxt.Exchange;
 
-const getProxyConfig = (): Record<string, string> => {
-  const httpsProxy = process.env.CCXT_HTTPS_PROXY?.trim();
+const getProxyConfig = (exchange: string): Record<string, string> => {
+  const httpsProxy = getCcxtProxy('CCXT_HTTPS_PROXY', exchange);
+  const socksProxy = getCcxtProxy('CCXT_SOCKS_PROXY', exchange);
 
-  return httpsProxy ? { httpsProxy } : {};
+  if (httpsProxy && socksProxy) {
+    throw new Error('Configure only one of CCXT_HTTPS_PROXY or CCXT_SOCKS_PROXY');
+  }
+
+  return {
+    ...(httpsProxy ? { httpsProxy } : {}),
+    ...(socksProxy ? { socksProxy } : {}),
+  };
 };
 
 class ExchangeAPI {
@@ -148,7 +157,9 @@ class ExchangeAPI {
     const ExchangeClass = ccxt[exchangeName as keyof typeof ccxt] as ExchangeConstructor | undefined;
 
     if (typeof ExchangeClass === 'function') {
-      const api = new ExchangeClass({ enableRateLimit: true, ...getProxyConfig() });
+      const socksProxy = getCcxtProxy('CCXT_SOCKS_PROXY', exchangeName);
+      const api = new ExchangeClass({ enableRateLimit: true, ...getProxyConfig(exchangeName) });
+      configureCcxtTransport(api);
 
       if (!this._isExchangeLoaded(exchange)) {
         this.exchanges.push({ exchangeName, api });

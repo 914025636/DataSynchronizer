@@ -234,7 +234,7 @@ function registerMarket(activeSender: Sender, exchange: string, symbol: string, 
     .symbol('exchange', exchange)
     .symbol('symbol', symbol)
     .stringColumn('trades_table', tables.tradesTable)
-    .stringColumn('orderbook_delta_table', tables.orderbookDeltaTable)
+    .stringColumn('orderbook_delta_table', tables.orderbookExactDeltaTable)
     .stringColumn('orderbook_exact_delta_table', tables.orderbookExactDeltaTable)
     .stringColumn('orderbook_depth_delta_table', tables.orderbookDepthDeltaTable)
     .at(Date.now(), 'ms');
