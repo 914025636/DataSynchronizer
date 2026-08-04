@@ -2,11 +2,17 @@
 'use strict';
 require('dotenv').config();
 
+import { afterEach, describe, expect, jest, test } from '@jest/globals';
 import { CCXT_API } from '../exchange/ccxt_controller';
 
 describe('CCXT Controller Test', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test('Filter market data by supported types', async () => {
     const loadExchange = jest.spyOn(CCXT_API, 'loadExchangeAPI').mockReturnValue(({
+      has: { spot: true, swap: true },
       loadMarkets: async () => ({
         'BTC/USDT': { symbol: 'BTC/USDT', spot: true, swap: false },
         'BTC/USDT:USDT': { symbol: 'BTC/USDT:USDT', spot: false, swap: true, linear: true },
@@ -17,7 +23,7 @@ describe('CCXT Controller Test', () => {
     const markets = await CCXT_API.getMarketdata('binance');
 
     expect(Object.keys(markets)).toEqual(['BTC/USDT', 'BTC/USDT:USDT']);
-    loadExchange.mockRestore();
+    expect(loadExchange).toHaveBeenCalledWith('binance');
   });
 
   // Add Binance exhcange
@@ -45,16 +51,24 @@ describe('CCXT Controller Test', () => {
   });
 
   // Get Marketdata
-  test('Marketdata check', async () => {
-    const result = await CCXT_API.getMarketdata('kucoin');
+  test(
+    'Marketdata check',
+    async () => {
+      const result = await CCXT_API.getMarketdata('kucoin');
 
-    expect(result).toBeTruthy();
-  });
+      expect(result).toBeTruthy();
+    },
+    15000,
+  );
 
   // Get PriceTickers
-  test('Pricetickers check', async () => {
-    const result = await CCXT_API.getPriceTickers('kucoin');
+  test(
+    'Pricetickers check',
+    async () => {
+      const result = await CCXT_API.getPriceTickers('kucoin');
 
-    expect(result).toBeTruthy();
-  });
+      expect(result).toBeTruthy();
+    },
+    15000,
+  );
 });

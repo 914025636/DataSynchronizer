@@ -60,9 +60,9 @@ export const openSocket = (symbols: string[]) => {
     watchOrderBook(symbol);
   });
 
-  return (): boolean => {
+  return async (): Promise<boolean> => {
     closed = true;
-    client.close().catch((err: any) => logger.error('Binance websocket close error', err));
+    await client.close().catch((err: any) => logger.error('Binance websocket close error', err));
     return true;
   };
 };
