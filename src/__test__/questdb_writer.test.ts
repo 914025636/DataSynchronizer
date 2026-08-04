@@ -60,7 +60,7 @@ describe('QuestDBWriter market routing', () => {
     expect(tableCalls).toEqual(['market_data_catalog', 'binance_btc_usdt_spot_trades']);
     expect(sender.stringColumn).toHaveBeenCalledWith(
       'orderbook_delta_table',
-      'binance_btc_usdt_spot_orderbook_1s_exact_delta',
+      'binance_btc_usdt_spot_orderbook_delta',
     );
   });
 
@@ -76,26 +76,12 @@ describe('QuestDBWriter market routing', () => {
     expect(tableCalls[3]).toBe('okx_btc_usdt_swap_trades');
   });
 
-  it('routes layered orderbooks to exact and aggregate tables', async () => {
-    await QuestDBWriter.writeLayeredOrderbook(
-      'bybit',
-      'BTC/USDT',
-      [[101, 2]],
-      [[99, 3]],
-      [[110, 120, 8]],
-      [[80, 90, 7]],
-      1200,
-      12,
-      'second_delta',
-      100,
-      0.1,
-      100,
-      1,
-      42,
-    );
+  it('records the update type and source update count on delta rows', async () => {
+    await QuestDBWriter.writeOrderbookDelta('bybit', 'BTC/USDT', [[101, 2]], [[99, 0]], 1200, 12, 'snapshot', 42);
 
-    expect(tableCalls).toContain('bybit_btc_usdt_spot_orderbook_1s_exact_delta');
-    expect(tableCalls).toContain('bybit_btc_usdt_spot_orderbook_1s_depth_delta');
+    expect(tableCalls).toContain('bybit_btc_usdt_spot_orderbook_delta');
+    expect(sender.symbol).toHaveBeenCalledWith('update_type', 'snapshot');
+    expect(sender.floatColumn).toHaveBeenCalledWith('source_update_count', 42);
   });
 
   it('resets the sender and retries when a TCP flush stalls', async () => {

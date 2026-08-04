@@ -5,13 +5,11 @@ import { Emitter } from '../../emitter/emitter';
 import { logger } from '../../logger';
 import { configureCcxtTransport, getCcxtProxy } from '../ccxt_proxy';
 import {
-  createLayeredOrderbook,
-  diffLayeredOrderbook,
-  hasLayeredChanges,
-  LayeredOrderbook,
-  LayeredOrderbookConfig,
-} from '../layered_orderbook';
-import { calculateIndexedOrderbookDelta, IndexedOrderbookState, OrderbookState } from '../orderbook_delta';
+  calculateIndexedOrderbookDelta,
+  indexOrderbook,
+  IndexedOrderbookState,
+  OrderbookState,
+} from '../orderbook_delta';
 
 type ProExchange = ccxt.Exchange & {
   watchTrades: (symbol: string) => Promise<ccxt.Trade[]>;
@@ -38,13 +36,8 @@ const websocketErrorWindow = Number(process.env.CCXT_WEBSOCKET_ERROR_WINDOW_MS |
 const eventLoopCheckInterval = Number(process.env.EVENT_LOOP_CHECK_INTERVAL_MS || 10 * 1000);
 const eventLoopDelayWarning = Number(process.env.EVENT_LOOP_DELAY_WARNING_MS || 1000);
 const orderbookDepth = Number(process.env.CCXT_ORDERBOOK_DEPTH || 50);
-const orderbookExactDepth = Number(process.env.ORDERBOOK_EXACT_DEPTH || 100);
 const orderbookPersistInterval = Number(process.env.ORDERBOOK_PERSIST_INTERVAL_MS || 1000);
 const orderbookSnapshotInterval = Number(process.env.ORDERBOOK_FULL_SNAPSHOT_INTERVAL_MS || 60000);
-const aggregationTickSteps = (process.env.ORDERBOOK_AGGREGATION_TICK_STEPS || '10,20,40,80,160')
-  .split(',')
-  .map((value) => Number(value.trim()))
-  .filter((value) => Number.isFinite(value) && value > 0);
 let marketInitializationQueue = Promise.resolve();
 let rejectionHandlerInstalled = false;
 let eventLoopMonitorInstalled = false;
@@ -177,64 +170,33 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
   let loggedFirstOrderbook = false;
   const orderbooks = new Map<string, IndexedOrderbookState>();
   const latestOrderbooks = new Map<string, OrderbookState>();
-  const persistedOrderbooks = new Map<string, LayeredOrderbook>();
-  const persistenceConfigs = new Map<string, LayeredOrderbookConfig>();
+  const persistedOrderbooks = new Map<string, IndexedOrderbookState>();
   const sourceUpdateCounts = new Map<string, number>();
   const lastSequences = new Map<string, number | undefined>();
   const lastSnapshotTimes = new Map<string, number>();
-
-  const inferTickSize = (symbol: string, orderbook: OrderbookState): number => {
-    const market = client.market(symbol);
-    const configuredTick = Number(market && market.precision && market.precision.price);
-    if (Number.isFinite(configuredTick) && configuredTick > 0 && configuredTick < 1) return configuredTick;
-
-    const prices = orderbook.asks.concat(orderbook.bids).map(([price]) => Number(price)).sort((a, b) => a - b);
-    let minimumDifference = Number.POSITIVE_INFINITY;
-    for (let index = 1; index < prices.length; index += 1) {
-      const difference = prices[index] - prices[index - 1];
-      if (difference > 0 && difference < minimumDifference) minimumDifference = difference;
-    }
-    return Number.isFinite(minimumDifference) ? Number(minimumDifference.toPrecision(15)) : 1;
-  };
 
   const persistOrderbooks = (): void => {
     const timestamp = Math.floor(Date.now() / orderbookPersistInterval) * orderbookPersistInterval;
 
     latestOrderbooks.forEach((latest, symbol) => {
-      let config = persistenceConfigs.get(symbol);
-      if (!config) {
-        const bestAsk = Number(latest.asks[0]?.[0]);
-        const bestBid = Number(latest.bids[0]?.[0]);
-        config = {
-          exactDepth: Math.min(orderbookExactDepth, exchangeOrderbookDepth),
-          tickSize: inferTickSize(symbol, latest),
-          referencePrice: Number(((bestAsk + bestBid) / 2).toPrecision(15)),
-          aggregationTickSteps,
-        };
-        persistenceConfigs.set(symbol, config);
-      }
-
-      const current = createLayeredOrderbook(latest, config);
       const previous = persistedOrderbooks.get(symbol);
       const lastSnapshot = lastSnapshotTimes.get(symbol) || 0;
       const snapshotDue = !previous || timestamp - lastSnapshot >= orderbookSnapshotInterval;
-      const payload = snapshotDue ? current : diffLayeredOrderbook(previous, current);
+      const payload = snapshotDue ? latest : calculateIndexedOrderbookDelta(previous, latest).delta;
 
-      if (snapshotDue || hasLayeredChanges(payload)) {
+      if (snapshotDue || payload.asks.length > 0 || payload.bids.length > 0) {
         Emitter.emit(EMITTER_EVENTS.OrderBookPersist, exchangeName, {
           symbol,
-          ...payload,
+          asks: payload.asks,
+          bids: payload.bids,
           timestamp,
           sequence: lastSequences.get(symbol),
-          updateType: snapshotDue ? 'snapshot' : 'second_delta',
-          exactDepth: config.exactDepth,
-          tickSize: config.tickSize,
-          referencePrice: config.referencePrice,
+          updateType: snapshotDue ? 'snapshot' : 'delta',
           sourceUpdateCount: sourceUpdateCounts.get(symbol) || 0,
         });
       }
 
-      persistedOrderbooks.set(symbol, current);
+      persistedOrderbooks.set(symbol, indexOrderbook(latest));
       sourceUpdateCounts.set(symbol, 0);
       if (snapshotDue) lastSnapshotTimes.set(symbol, timestamp);
     });

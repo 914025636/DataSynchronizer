@@ -140,20 +140,14 @@ export class MarketStreamWorker {
             event.eventTime,
           );
         }
-        return QuestDBWriter.writeLayeredOrderbook(
+        return QuestDBWriter.writeOrderbookDelta(
           event.exchange,
           event.symbol,
-          event.exactAsks,
-          event.exactBids,
-          event.aggregateAsks,
-          event.aggregateBids,
+          event.asks,
+          event.bids,
           event.eventTime,
           event.sequence,
           event.updateType,
-          event.exactDepth,
-          event.tickSize,
-          event.referencePrice,
-          event.aggregationVersion,
           event.sourceUpdateCount,
         );
       }),

@@ -1,8 +1,6 @@
 import {
   questdbMarketTables,
   questdbOrderbookDeltaTableName,
-  questdbOrderbookDepthDeltaTableName,
-  questdbOrderbookExactDeltaTableName,
   questdbTradesTableName,
 } from '../questdb/table_names';
 
@@ -17,15 +15,6 @@ describe('QuestDB market table names', () => {
     expect(questdbTradesTableName('okx', 'BTC/USDT:USDT')).toBe('okx_btc_usdt_swap_trades');
     expect(questdbOrderbookDeltaTableName('gate', 'BTC/USDT:USDT')).toBe(
       'gate_btc_usdt_swap_orderbook_delta',
-    );
-  });
-
-  it('uses separate tables for exact and aggregated one-second orderbooks', () => {
-    expect(questdbOrderbookExactDeltaTableName('bybit', 'BTC/USDT')).toBe(
-      'bybit_btc_usdt_spot_orderbook_1s_exact_delta',
-    );
-    expect(questdbOrderbookDepthDeltaTableName('bybit', 'BTC/USDT')).toBe(
-      'bybit_btc_usdt_spot_orderbook_1s_depth_delta',
     );
   });
 
@@ -47,8 +36,6 @@ describe('QuestDB market table names', () => {
       marketKey: 'bybit\0ETH/USDT',
       tradesTable: 'bybit_eth_usdt_spot_trades',
       orderbookDeltaTable: 'bybit_eth_usdt_spot_orderbook_delta',
-      orderbookExactDeltaTable: 'bybit_eth_usdt_spot_orderbook_1s_exact_delta',
-      orderbookDepthDeltaTable: 'bybit_eth_usdt_spot_orderbook_1s_depth_delta',
     });
   });
 });

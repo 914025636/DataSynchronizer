@@ -234,9 +234,7 @@ function registerMarket(activeSender: Sender, exchange: string, symbol: string, 
     .symbol('exchange', exchange)
     .symbol('symbol', symbol)
     .stringColumn('trades_table', tables.tradesTable)
-    .stringColumn('orderbook_delta_table', tables.orderbookExactDeltaTable)
-    .stringColumn('orderbook_exact_delta_table', tables.orderbookExactDeltaTable)
-    .stringColumn('orderbook_depth_delta_table', tables.orderbookDepthDeltaTable)
+    .stringColumn('orderbook_delta_table', tables.orderbookDeltaTable)
     .at(Date.now(), 'ms');
 }
 
@@ -287,7 +285,8 @@ export const QuestDBWriter = {
    * qty = 0 表示该档位被删除
    * 表结构（自动创建）：
    *   orderbook_delta(ts TIMESTAMP, exchange SYMBOL, symbol SYMBOL, side SYMBOL,
-   *                   update_type SYMBOL, price DOUBLE, qty DOUBLE, sequence DOUBLE)
+   *                   update_type SYMBOL, price DOUBLE, qty DOUBLE, sequence DOUBLE,
+   *                   source_update_count DOUBLE)
    */
   writeOrderbookDelta: async (
     exchange: string,
@@ -297,36 +296,28 @@ export const QuestDBWriter = {
     timestamp: number,
     sequence?: number,
     updateType: 'snapshot' | 'delta' = 'delta',
+    sourceUpdateCount = 0,
   ): Promise<void> => {
     try {
       const tables = questdbMarketTables(exchange, symbol);
       await enqueueWrite((activeSender) => {
         const shouldRegister = !registeredMarkets.has(tables.marketKey);
         if (shouldRegister) registerMarket(activeSender, exchange, symbol, tables);
-        for (const [price, qty] of asks) {
+        const writeLevel = (side: string, price: number, qty: number): void => {
           activeSender
             .table(tables.orderbookDeltaTable)
             .symbol('exchange', exchange)
             .symbol('symbol', symbol)
-            .symbol('side', 'ask')
+            .symbol('side', side)
             .symbol('update_type', updateType)
             .floatColumn('price', price)
             .floatColumn('qty', qty)
             .floatColumn('sequence', sequence || 0)
+            .floatColumn('source_update_count', sourceUpdateCount)
             .at(timestamp, 'ms');
-        }
-        for (const [price, qty] of bids) {
-          activeSender
-            .table(tables.orderbookDeltaTable)
-            .symbol('exchange', exchange)
-            .symbol('symbol', symbol)
-            .symbol('side', 'bid')
-            .symbol('update_type', updateType)
-            .floatColumn('price', price)
-            .floatColumn('qty', qty)
-            .floatColumn('sequence', sequence || 0)
-            .at(timestamp, 'ms');
-        }
+        };
+        asks.forEach(([price, qty]) => writeLevel('ask', price, qty));
+        bids.forEach(([price, qty]) => writeLevel('bid', price, qty));
         if (shouldRegister) registeredMarkets.add(tables.marketKey);
         if (!loggedFirstOrderbookWrite) {
           loggedFirstOrderbookWrite = true;
@@ -336,76 +327,6 @@ export const QuestDBWriter = {
     } catch (e) {
       logRateLimitedError('questdb-write-orderbook', 'QuestDB writeOrderbookDelta error', e);
       throw e;
-    }
-  },
-
-  writeLayeredOrderbook: async (
-    exchange: string,
-    symbol: string,
-    exactAsks: [number, number][],
-    exactBids: [number, number][],
-    aggregateAsks: [number, number, number][],
-    aggregateBids: [number, number, number][],
-    timestamp: number,
-    sequence: number | undefined,
-    updateType: 'snapshot' | 'second_delta',
-    exactDepth: number,
-    tickSize: number,
-    referencePrice: number,
-    aggregationVersion: number,
-    sourceUpdateCount: number,
-  ): Promise<void> => {
-    try {
-      const tables = questdbMarketTables(exchange, symbol);
-      await enqueueWrite((activeSender) => {
-        const shouldRegister = !registeredMarkets.has(tables.marketKey);
-        if (shouldRegister) registerMarket(activeSender, exchange, symbol, tables);
-
-        const writeExact = (side: string, price: number, quantity: number): void => {
-          activeSender
-            .table(tables.orderbookExactDeltaTable)
-            .symbol('exchange', exchange)
-            .symbol('symbol', symbol)
-            .symbol('side', side)
-            .symbol('update_type', updateType)
-            .floatColumn('price', price)
-            .floatColumn('qty', quantity)
-            .floatColumn('sequence', sequence || 0)
-            .floatColumn('exact_depth', exactDepth)
-            .floatColumn('tick_size', tickSize)
-            .floatColumn('reference_price', referencePrice)
-            .floatColumn('aggregation_version', aggregationVersion)
-            .floatColumn('source_update_count', sourceUpdateCount)
-            .at(timestamp, 'ms');
-        };
-        const writeAggregate = (side: string, start: number, end: number, quantity: number): void => {
-          activeSender
-            .table(tables.orderbookDepthDeltaTable)
-            .symbol('exchange', exchange)
-            .symbol('symbol', symbol)
-            .symbol('side', side)
-            .symbol('update_type', updateType)
-            .floatColumn('bucket_start', start)
-            .floatColumn('bucket_end', end)
-            .floatColumn('qty', quantity)
-            .floatColumn('sequence', sequence || 0)
-            .floatColumn('exact_depth', exactDepth)
-            .floatColumn('tick_size', tickSize)
-            .floatColumn('reference_price', referencePrice)
-            .floatColumn('aggregation_version', aggregationVersion)
-            .floatColumn('source_update_count', sourceUpdateCount)
-            .at(timestamp, 'ms');
-        };
-
-        exactAsks.forEach(([price, quantity]) => writeExact('ask', price, quantity));
-        exactBids.forEach(([price, quantity]) => writeExact('bid', price, quantity));
-        aggregateAsks.forEach(([start, end, quantity]) => writeAggregate('ask', start, end, quantity));
-        aggregateBids.forEach(([start, end, quantity]) => writeAggregate('bid', start, end, quantity));
-        if (shouldRegister) registeredMarkets.add(tables.marketKey);
-      });
-    } catch (error) {
-      logRateLimitedError('questdb-write-layered-orderbook', 'QuestDB writeLayeredOrderbook error', error);
-      throw error;
     }
   },
 

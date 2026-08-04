@@ -1,7 +1,6 @@
 const questDBWriter = {
   writeTrade: jest.fn(),
   writeOrderbookDelta: jest.fn(),
-  writeLayeredOrderbook: jest.fn(),
   flush: jest.fn(),
   close: jest.fn(),
 };

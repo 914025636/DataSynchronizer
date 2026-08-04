@@ -1,9 +1,9 @@
 export const MARKET_STREAM_SCHEMA_VERSION = 1;
-export const ORDERBOOK_STREAM_SCHEMA_VERSION = 2;
+export const ORDERBOOK_STREAM_SCHEMA_VERSION = 3;
 
 export const MARKET_STREAMS = {
   trades: process.env.REDIS_TRADE_STREAM || 'market:trades:v1',
-  orderbook: process.env.REDIS_ORDERBOOK_STREAM || 'market:orderbook:v2',
+  orderbook: process.env.REDIS_ORDERBOOK_STREAM || 'market:orderbook:v3',
 };
 
 export type TradeStreamEvent = {
@@ -20,22 +20,16 @@ export type TradeStreamEvent = {
 };
 
 export type OrderbookStreamEvent = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   eventType: 'orderbook';
   exchange: string;
   symbol: string;
   eventTime: number;
   ingestedAt: number;
-  exactAsks: [number, number][];
-  exactBids: [number, number][];
-  aggregateAsks: [number, number, number][];
-  aggregateBids: [number, number, number][];
+  asks: [number, number][];
+  bids: [number, number][];
   sequence?: number;
-  updateType: 'snapshot' | 'second_delta';
-  exactDepth: number;
-  tickSize: number;
-  referencePrice: number;
-  aggregationVersion: number;
+  updateType: 'snapshot' | 'delta';
   sourceUpdateCount: number;
 };
 
@@ -90,20 +84,12 @@ export function parseMarketEvent(fields: string[]): MarketStreamEvent {
   if (
     event.eventType === 'orderbook' &&
     event.schemaVersion === ORDERBOOK_STREAM_SCHEMA_VERSION &&
-    Array.isArray(event.exactAsks) &&
-    event.exactAsks.every(isPriceLevel) &&
-    Array.isArray(event.exactBids) &&
-    event.exactBids.every(isPriceLevel) &&
-    Array.isArray(event.aggregateAsks) &&
-    event.aggregateAsks.every((level) => Array.isArray(level) && level.length === 3 && level.every(isNumber)) &&
-    Array.isArray(event.aggregateBids) &&
-    event.aggregateBids.every((level) => Array.isArray(level) && level.length === 3 && level.every(isNumber)) &&
+    Array.isArray(event.asks) &&
+    event.asks.every(isPriceLevel) &&
+    Array.isArray(event.bids) &&
+    event.bids.every(isPriceLevel) &&
     (event.sequence === undefined || isNumber(event.sequence)) &&
-    (event.updateType === 'snapshot' || event.updateType === 'second_delta') &&
-    isNumber(event.exactDepth) &&
-    isNumber(event.tickSize) &&
-    isNumber(event.referencePrice) &&
-    isNumber(event.aggregationVersion) &&
+    (event.updateType === 'snapshot' || event.updateType === 'delta') &&
     isNumber(event.sourceUpdateCount)
   ) {
     return event as OrderbookStreamEvent;

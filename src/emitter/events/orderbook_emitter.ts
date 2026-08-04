@@ -44,16 +44,11 @@ interface OrderBookDepth {
 
 interface PersistedOrderBookDepth {
   symbol: string;
-  exactAsks: [number, number][];
-  exactBids: [number, number][];
-  aggregateAsks: [number, number, number][];
-  aggregateBids: [number, number, number][];
+  asks: [number, number][];
+  bids: [number, number][];
   timestamp: number;
   sequence?: number;
-  updateType: 'snapshot' | 'second_delta';
-  exactDepth: number;
-  tickSize: number;
-  referencePrice: number;
+  updateType: 'snapshot' | 'delta';
   sourceUpdateCount: number;
 }
 
@@ -150,22 +145,16 @@ class OrderbookEmitter {
           .then((ccxtSymbol) => {
             if (!ccxtSymbol) return;
             return marketStreamProducer.append(MARKET_STREAMS.orderbook, {
-              schemaVersion: 2,
+              schemaVersion: 3,
               eventType: 'orderbook',
               exchange: exchange.toLowerCase(),
               symbol: ccxtSymbol,
               eventTime: depth.timestamp,
               ingestedAt: Date.now(),
-              exactAsks: depth.exactAsks,
-              exactBids: depth.exactBids,
-              aggregateAsks: depth.aggregateAsks,
-              aggregateBids: depth.aggregateBids,
+              asks: depth.asks,
+              bids: depth.bids,
               sequence: depth.sequence,
               updateType: depth.updateType,
-              exactDepth: depth.exactDepth,
-              tickSize: depth.tickSize,
-              referencePrice: depth.referencePrice,
-              aggregationVersion: 1,
               sourceUpdateCount: depth.sourceUpdateCount,
             });
           })

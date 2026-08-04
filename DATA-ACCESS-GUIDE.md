@@ -7,7 +7,7 @@
 | 需求 | 数据源 | 读取入口 |
 | --- | --- | --- |
 | 历史逐笔成交 | QuestDB 每市场 `*_trades` | 先查 `market_data_catalog`，再通过 HTTP `localhost:9000` 或 PostgreSQL 协议 `localhost:18812` 读取 |
-| 历史订单簿变化/重建 | QuestDB 每市场 `*_orderbook_1s_exact_delta` 与 `*_orderbook_1s_depth_delta` | 前 100 档保存秒级精确净变化，更深档位保存固定价格桶的秒级净变化 |
+| 历史订单簿变化/重建 | QuestDB 每市场 `*_orderbook_delta` | 先查 `market_data_catalog`，从最近的 `snapshot` 起按序应用 `delta` |
 | 旧版逐交易对成交、K 线、订单簿快照 | MySQL | 使用 `.env` 中的 `MYSQL_*` / `MYSQL_*_EXCHANGE` 配置 |
 | 当前订单簿短期快照和实时通知 | Redis | 使用 `.env` 中的 `REDIS_*` 配置；它不是长期历史库 |
 | 可视化查看 | Grafana | `http://localhost:3000` |
@@ -84,11 +84,9 @@ QuestDB 表由 ILP 首次写入时自动创建。以下类型来自当前写入�
 
 注意：QuestDB 写入路径没有显式去重。读取方需要去重时，可按业务语义使用 `(exchange, symbol, trade_id)`；不要只按 `ts` 去重，同一毫秒可能有多笔成交。
 
-### `{market}_orderbook_delta`：订单簿档位事件
+### `{market}_orderbook_delta`：订单簿档位增量
 
-该表仅保留切换前的逐事件历史数据。新数据不再写入此表。
-
-每一行表示某次订单簿消息中的一个价格档位。一次 WebSocket 消息通常产生多行，且这些行可共享同一个 `ts` 和 `sequence`。
+每一行表示一个价格档位在该次持久化中的状态。一次持久化通常产生多行，且这些行共享同一个 `timestamp` 和 `sequence`。写入节奏由 `ORDERBOOK_PERSIST_INTERVAL_MS` 控制（默认 1000ms），完整快照间隔由 `ORDERBOOK_FULL_SNAPSHOT_INTERVAL_MS` 控制（默认 60000ms）。
 
 | 字段 | QuestDB 类型 | 含义 |
 | --- | --- | --- |
@@ -100,6 +98,7 @@ QuestDB 表由 ILP 首次写入时自动创建。以下类型来自当前写入�
 | `price` | `DOUBLE` | 价格档位 |
 | `qty` | `DOUBLE` | 该档位更新后的数量；`0` 表示删除该档位 |
 | `sequence` | `DOUBLE` | 交易所/CCXT 序列号；不可用时为 `0` |
+| `source_update_count` | `DOUBLE` | 该间隔内合并的上游 WebSocket 更新次数 |
 
 读取语义：
 
@@ -108,16 +107,7 @@ QuestDB 表由 ILP 首次写入时自动创建。以下类型来自当前写入�
 - `sequence` 被存为 `DOUBLE`，超大整数可能失去精度；值为 `0` 时不能依赖它排序。
 - 同一毫秒内可能有多次更新。仅按 `timestamp` 排序未必能恢复严格事件顺序；有可靠非零序列号时同时按 `sequence` 排序。
 - 重建历史订单簿时，从目标时刻之前最近的一组 `snapshot` 开始，按时间和可用序列依次应用 `delta`。不要把所有历史行直接视为当前挂单。
-
-### `{market}_orderbook_1s_exact_delta`：近端秒级精确盘口
-
-前 `ORDERBOOK_EXACT_DEPTH` 档按价格逐档保存。首次启动、重连后首次数据及每分钟保存完整 `snapshot`，其他秒保存 `second_delta`。同一秒内同一价格的多次变化只保留秒末净状态，`qty = 0` 表示该价格已离开精确层。
-
-### `{market}_orderbook_1s_depth_delta`：远端秒级聚合盘口
-
-精确层以外的价格按固定 tick 宽度聚合。`bucket_start` 为包含边界，`bucket_end` 为不包含边界，`qty` 是桶内数量总和。桶宽按 `ORDERBOOK_AGGREGATION_TICK_STEPS` 逐级增加，价格边界全局对齐，不随实时中间价移动。
-
-两张秒级表均包含 `exact_depth`、`tick_size`、`reference_price`、`aggregation_version`、`source_update_count` 和 `sequence`。服务重启可能选取新的固定参考价，因此必须从最近的 `snapshot` 开始重建，并使用该快照同行的聚合元数据解释后续 `second_delta`；不能跨快照直接拼接不同参考价下的聚合桶。
+- 增量由本地前后两帧的 top-N 比较得出，深度上限为 `CCXT_ORDERBOOK_DEPTH`（可按交易所用 `CCXT_ORDERBOOK_DEPTH_{EXCHANGE}` 覆盖）。档位进出该边界会表现为新增或删除，不代表交易所侧真实撤单。
 
 ### `market_data_catalog`：市场路由
 

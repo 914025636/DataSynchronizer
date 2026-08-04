@@ -4,8 +4,6 @@ export type QuestDBMarketTables = {
   marketKey: string;
   tradesTable: string;
   orderbookDeltaTable: string;
-  orderbookExactDeltaTable: string;
-  orderbookDepthDeltaTable: string;
 };
 
 function readableComponent(value: string): string {
@@ -36,20 +34,10 @@ export function questdbOrderbookDeltaTableName(exchange: string, symbol: string)
   return marketTableName(exchange, symbol, 'orderbook_delta');
 }
 
-export function questdbOrderbookExactDeltaTableName(exchange: string, symbol: string): string {
-  return marketTableName(exchange, symbol, 'orderbook_1s_exact_delta');
-}
-
-export function questdbOrderbookDepthDeltaTableName(exchange: string, symbol: string): string {
-  return marketTableName(exchange, symbol, 'orderbook_1s_depth_delta');
-}
-
 export function questdbMarketTables(exchange: string, symbol: string): QuestDBMarketTables {
   return {
     marketKey: `${exchange}\0${symbol}`,
     tradesTable: questdbTradesTableName(exchange, symbol),
     orderbookDeltaTable: questdbOrderbookDeltaTableName(exchange, symbol),
-    orderbookExactDeltaTable: questdbOrderbookExactDeltaTableName(exchange, symbol),
-    orderbookDepthDeltaTable: questdbOrderbookDepthDeltaTableName(exchange, symbol),
   };
 }
