@@ -140,6 +140,38 @@
 				"panel": "dedicated",
 				"clear": true
 			}
+		},
+		{
+			"label": "查看 QuestDB 和 MySQL 每个表大小",
+			"type": "process",
+			"command": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+			"args": [
+				"${workspaceFolder}\\scripts\\report_database_table_sizes.py"
+			],
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"clear": true
+			}
+		},
+		{
+			"label": "监控 Docker VHDX 和数据库存储",
+			"type": "process",
+			"command": "powershell.exe",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}\\scripts\\monitor_docker_storage.ps1"
+			],
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"clear": true
+			}
 		}
 	],
 	"inputs": [
