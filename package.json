@@ -37,6 +37,7 @@
     "binance-api-node": "^0.9.15",
     "candlestick-convert": "^5.0.0",
     "ccxt": "^4.5.70",
+    "csv-parse": "^7.0.2",
     "dotenv": "^8.0.0",
     "eventemitter3": "^4.0.0",
     "http-proxy-agent": "^9.1.0",
