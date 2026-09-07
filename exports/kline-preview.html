@@ -27,7 +27,8 @@
   button:hover:not(:disabled), select:hover { border-color: #4a4f5c; }
   button:disabled { opacity: .4; cursor: default; }
   #chart { flex: 1; position: relative; min-height: 0; }
-  canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+  canvas.dragging { cursor: grabbing; }
   #tip { position: absolute; pointer-events: none; background: #1e222dee; border: 1px solid #2a2e39; border-radius: 4px; padding: 6px 8px; font-size: 12px; white-space: pre; display: none; }
   #note { padding: 6px 14px; border-top: 1px solid #2a2e39; color: #868993; font-size: 12px; }
   #error { margin: 20px; padding: 12px; border: 1px solid #ef5350; border-radius: 4px; color: #ef5350; display: none; white-space: pre-wrap; }
@@ -47,9 +48,9 @@
     <div id="stats"></div>
     <div class="spacer"></div>
     <label>周期 <select id="bucket">
-      <option value="1">1 秒</option>
+      <option value="1" selected>1 秒</option>
       <option value="5">5 秒</option>
-      <option value="15" selected>15 秒</option>
+      <option value="15">15 秒</option>
       <option value="60">1 分钟</option>
     </select></label>
     <button id="prev" title="上一条（←）">上一条</button>
@@ -69,6 +70,7 @@ let view = { start: 0, count: 0 };
 
 const visible = () => candles.slice(view.start, view.start + view.count);
 function resetView() { view = { start: 0, count: candles.length }; hover = -1; }
+function panTo(start) { view.start = Math.round(Math.min(candles.length - view.count, Math.max(0, start))); }
 
 function parseCsv(text) {
   const rows = [];
@@ -192,6 +194,13 @@ function draw() {
   }
 }
 
+// Coalesce redraws so dragging stays smooth with 5400 one-second candles.
+let pending = 0;
+function render() {
+  if (pending) return;
+  pending = requestAnimationFrame(() => { pending = 0; draw(); });
+}
+
 function showStats(rows) {
   const eventIndex = rows.findIndex(r => Number(r.relative_seconds) === 0);
   const base = Number(rows[eventIndex].open);
@@ -225,19 +234,34 @@ async function select(index) {
     resetView();
     showStats(rawRows);
     $('note').textContent = '公布时间 ' + beijing(item.event_time_utc) + '（北京时间） · ' + item.event_time_utc + ' · 币安 BTC/USDT 现货 · ' +
-      rawRows.length + ' 根秒线聚合为 ' + candles.length + ' 根 · 滚轮缩放，双击还原 · 文件 ' + item.file;
+      rawRows.length + ' 根秒线聚合为 ' + candles.length + ' 根 · 滚轮缩放，按住拖动平移，双击还原 · 文件 ' + item.file;
     draw();
   } catch (error) { fail(error); }
 }
 
+let drag = null;
+canvas.addEventListener('mousedown', event => {
+  if (event.button !== 0 || !layout) return;
+  drag = { x: event.clientX, start: view.start };
+  canvas.classList.add('dragging');
+  $('tip').style.display = 'none';
+});
+addEventListener('mouseup', () => { drag = null; canvas.classList.remove('dragging'); });
+
 canvas.addEventListener('mousemove', event => {
   if (!layout || !candles.length) return;
+  if (drag) {
+    panTo(drag.start - (event.clientX - drag.x) / layout.step);
+    hover = -1;
+    render();
+    return;
+  }
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const index = Math.floor((x - layout.left) / layout.step);
   hover = index >= 0 && index < view.count ? index : -1;
   const tip = $('tip');
-  if (hover < 0) { tip.style.display = 'none'; draw(); return; }
+  if (hover < 0) { tip.style.display = 'none'; render(); return; }
   const candle = visible()[hover];
   const sign = candle.second >= 0 ? '+' : '';
   tip.textContent = '距公布 ' + sign + candle.second + ' 秒\n开 ' + candle.open.toFixed(2) + '\n高 ' + candle.high.toFixed(2) +
@@ -245,9 +269,9 @@ canvas.addEventListener('mousemove', event => {
   tip.style.display = 'block';
   tip.style.left = Math.min(x + 14, rect.width - tip.offsetWidth - 8) + 'px';
   tip.style.top = Math.min(event.clientY - rect.top + 14, rect.height - tip.offsetHeight - 8) + 'px';
-  draw();
+  render();
 });
-canvas.addEventListener('mouseleave', () => { hover = -1; $('tip').style.display = 'none'; draw(); });
+canvas.addEventListener('mouseleave', () => { if (drag) return; hover = -1; $('tip').style.display = 'none'; render(); });
 canvas.addEventListener('wheel', event => {
   if (!layout || !candles.length) return;
   event.preventDefault();
@@ -256,13 +280,13 @@ canvas.addEventListener('wheel', event => {
   const anchor = view.start + ratio * view.count;
   const count = Math.round(Math.min(candles.length, Math.max(MIN_VISIBLE, view.count * (event.deltaY < 0 ? 0.8 : 1.25))));
   view.count = count;
-  view.start = Math.round(Math.min(candles.length - count, Math.max(0, anchor - ratio * count)));
+  panTo(anchor - ratio * count);
   hover = -1;
   $('tip').style.display = 'none';
-  draw();
+  render();
 }, { passive: false });
-canvas.addEventListener('dblclick', () => { resetView(); $('tip').style.display = 'none'; draw(); });
-$('bucket').onchange = () => { if (rawRows.length) { candles = aggregate(rawRows, Number($('bucket').value)); resetView(); draw(); } };
+canvas.addEventListener('dblclick', () => { resetView(); $('tip').style.display = 'none'; render(); });
+$('bucket').onchange = () => { if (rawRows.length) { candles = aggregate(rawRows, Number($('bucket').value)); resetView(); render(); } };
 $('prev').onclick = () => select(current - 1);
 $('next').onclick = () => select(current + 1);
 $('search').oninput = () => { renderList(); if (filtered.length) select(0); };
@@ -271,7 +295,7 @@ addEventListener('keydown', event => {
   if (event.key === 'ArrowLeft') select(current - 1);
   if (event.key === 'ArrowRight') select(current + 1);
 });
-addEventListener('resize', draw);
+addEventListener('resize', render);
 
 loadCsv('index.csv').then(rows => {
   events = rows.filter(row => row.status === 'complete');
