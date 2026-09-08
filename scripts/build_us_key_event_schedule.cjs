@@ -23,28 +23,34 @@ function easternToUtc(dateText, hour, minute) {
 
 // BLS Employment Situation and CPI releases, from the official release calendars at bls.gov.
 const BLS = {
-  employment: ['2025-01-10', '2025-02-07', '2025-03-07', '2025-04-04', '2025-05-02', '2025-06-06', '2025-07-03', '2025-08-01', '2025-09-05', '2025-11-20', '2025-12-16',
+  employment: ['2024-01-05', '2024-02-02', '2024-03-08', '2024-04-05', '2024-05-03', '2024-06-07', '2024-07-05', '2024-08-02', '2024-09-06', '2024-10-04', '2024-11-01', '2024-12-06',
+    '2025-01-10', '2025-02-07', '2025-03-07', '2025-04-04', '2025-05-02', '2025-06-06', '2025-07-03', '2025-08-01', '2025-09-05', '2025-11-20', '2025-12-16',
     '2026-01-09', '2026-02-11', '2026-03-06', '2026-04-03', '2026-05-08', '2026-06-05', '2026-07-02', '2026-08-07', '2026-09-04'],
-  cpi: ['2025-01-15', '2025-02-12', '2025-03-12', '2025-04-10', '2025-05-13', '2025-06-11', '2025-07-15', '2025-08-12', '2025-09-11', '2025-10-24', '2025-12-18',
+  cpi: ['2024-01-11', '2024-02-13', '2024-03-12', '2024-04-10', '2024-05-15', '2024-06-12', '2024-07-11', '2024-08-14', '2024-09-11', '2024-10-10', '2024-11-13', '2024-12-11',
+    '2025-01-15', '2025-02-12', '2025-03-12', '2025-04-10', '2025-05-13', '2025-06-11', '2025-07-15', '2025-08-12', '2025-09-11', '2025-10-24', '2025-12-18',
     '2026-01-13', '2026-02-13', '2026-03-11', '2026-04-10', '2026-05-12', '2026-06-10', '2026-07-14', '2026-08-12'],
 };
 
 // FOMC statement days, from federalreserve.gov meeting calendars. Statements are released at 14:00 Eastern.
-const FOMC = ['2025-01-29', '2025-03-19', '2025-05-07', '2025-06-18', '2025-07-30', '2025-09-17', '2025-10-29', '2025-12-10',
+const FOMC = ['2024-01-31', '2024-03-20', '2024-05-01', '2024-06-12', '2024-07-31', '2024-09-18', '2024-11-07', '2024-12-18',
+  '2025-01-29', '2025-03-19', '2025-05-07', '2025-06-18', '2025-07-30', '2025-09-17', '2025-10-29', '2025-12-10',
   '2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16'];
 
 // BEA GDP third-estimate dates, taken from the published release titles rather than inferred,
 // because the 2025 government shutdown pushed several releases outside their usual quarter.
 const GDP_FINAL = [
+  ['2024-03-28', '2023 Q4'], ['2024-06-27', '2024 Q1'], ['2024-09-26', '2024 Q2'], ['2024-12-19', '2024 Q3'],
   ['2025-03-27', '2024 Q4'], ['2025-06-26', '2025 Q1'], ['2025-09-25', '2025 Q2'],
   ['2026-01-22', '2025 Q3'], ['2026-04-09', '2025 Q4'], ['2026-06-25', '2026 Q1'], ['2026-09-30', '2026 Q2'],
 ];
 
+// The BEA schedule feed only covers 2025 onward; 2024 dates come from the BEA news archive.
 function verifyGdpAgainstBea(file) {
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   const published = new Set((data['Gross Domestic Product'] || {}).release_dates?.map(iso => new Date(iso).toISOString().slice(0, 10)) || []);
   if (!published.size) throw new Error('Unexpected BEA schedule structure');
-  const missing = GDP_FINAL.map(([day]) => day).filter(day => !published.has(day));
+  const feedStart = [...published].sort()[0];
+  const missing = GDP_FINAL.map(([day]) => day).filter(day => day >= feedStart && !published.has(day));
   if (missing.length) throw new Error('GDP dates absent from the BEA schedule: ' + missing.join(', '));
 }
 
@@ -75,7 +81,7 @@ function main() {
     add(easternToUtc(day, 8, 30), 'GDP Growth Rate QoQ Final', '国内生产总值（GDP）增长率季环比终值', 'BEA release schedule', quarter + ' 第三次估值');
   }
 
-  const start = Date.parse('2025-01-01T00:00:00Z');
+  const start = Date.parse('2024-01-01T00:00:00Z');
   const end = Date.parse('2026-09-30T00:00:00Z');
   const selected = rows.filter(row => row.event_timestamp_ms >= start && row.event_timestamp_ms <= end)
     .sort((a, b) => a.event_timestamp_ms - b.event_timestamp_ms || a.event_en.localeCompare(b.event_en));
@@ -89,7 +95,7 @@ function main() {
 
   const fields = Object.keys(selected[0]);
   const cell = value => '"' + String(value ?? '').replace(/"/g, '""') + '"';
-  const output = path.join(root, 'exports', 'us-key-events-schedule-2025-01-to-2026-09.csv');
+  const output = path.join(root, 'exports', 'us-key-events-schedule-2024-01-to-2026-09.csv');
   fs.writeFileSync(output, '\ufeff' + [fields.join(','), ...selected.map(row => fields.map(f => cell(row[f])).join(','))].join('\r\n') + '\r\n');
 
   const counts = {};

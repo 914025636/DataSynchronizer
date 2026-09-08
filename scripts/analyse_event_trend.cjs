@@ -98,7 +98,7 @@ function main() {
   }
   grid.sort((a, b) => b.average - a.average);
 
-  console.log(JSON.stringify({
+  const report = {
     events: rows.length,
     triggered: triggered.length, quiet: quiet.length,
     continuationRate5m: continued.length / triggered.length * 100,
@@ -116,7 +116,11 @@ function main() {
       favourable5m: +r.at300.favourable.toFixed(3), adverse5m: +r.at300.adverse.toFixed(3),
       efficiency: +r.efficiency5m.toFixed(3), preRange: +r.preRange.toFixed(3),
     })).sort((a, b) => Math.abs(b.impulse) - Math.abs(a.impulse)),
-  }, null, 2));
+  };
+  const output = path.join(directory, 'trend-analysis.json');
+  fs.writeFileSync(output, JSON.stringify(report, null, 2));
+  const { detail, ...summary } = report;
+  console.log(JSON.stringify({ ...summary, output }, null, 2));
 }
 
 module.exports = { describe, simulate, efficiency };
