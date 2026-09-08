@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { parse } = require('csv-parse/sync');
-const { groupEvents, validateCandles, candleCsv, fetchWindow, EXPECTED } = require('./fetch_event_binance_1s.cjs');
+const { groupEvents, validateCandles, candleCsv, fetchWindow, indexRecords, EXPECTED } = require('./fetch_event_binance_1s.cjs');
 const time = Date.parse('2026-06-09T14:00:00Z');
 const candles = Array.from({ length: EXPECTED }, (_, i) => [time - 1800000 + i * 1000, 100, 102, 99, 101, 0]);
 
@@ -45,4 +45,17 @@ test('Fetch six pages with explicit endTime and native one-second spot symbol', 
 test('Never fill a missing historical candle with an invented price', async () => {
   const exchange = { fetchOHLCV: async (_symbol, _interval, since, limit) => candles.filter(row => row[0] >= since && row[0] !== time).slice(0, limit) };
   await assert.rejects(fetchWindow(exchange, time));
+});
+
+test('Index keeps each event value aligned and preserves empty fields', () => {
+  const [record] = indexRecords([{ eventTimeUTC: 'iso', eventTimestampMs: time, windowStartUTC: 'a', windowEndExclusiveUTC: 'b', rows: 5400, status: 'complete', file: 'f.csv',
+    events: [
+      { calendarId: '1', event: 'Non Farm Payrolls', event_zh: '非农就业人数', actual: '162K', forecast: '56K', previous: '21K', prevInitial: '-23K', unit: 'K', ccy: '', importance: '3', region: 'United States' },
+      { calendarId: '2', event: 'Fed Speech', event_zh: '美联储讲话', actual: '', forecast: '', previous: '', prevInitial: '', unit: '', ccy: '', importance: '3', region: 'United States' },
+    ] }]);
+  assert.equal(record.actual, '162K;');
+  assert.equal(record.forecast, '56K;');
+  assert.equal(record.prev_initial, '-23K;');
+  assert.equal(record.events_zh, '非农就业人数；美联储讲话');
+  assert.equal(record.actual.split(';').length, record.calendar_ids.split(';').length);
 });

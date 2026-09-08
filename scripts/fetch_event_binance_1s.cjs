@@ -39,6 +39,29 @@ function csv(columns, records) {
   return '\ufeff' + [columns.map(cell).join(','), ...records.map(record => columns.map(key => cell(record[key])).join(','))].join('\r\n') + '\r\n';
 }
 
+const joinField = (events, key) => events.map(event => event[key] ?? '').join(';');
+
+function indexRecords(tables) {
+  return tables.map(item => ({
+    event_time_utc: item.eventTimeUTC, event_timestamp_ms: item.eventTimestampMs,
+    calendar_ids: joinField(item.events, 'calendarId'),
+    events_zh: item.events.map(event => event.event_zh || event.event).join('；'),
+    events_en: joinField(item.events, 'event'),
+    actual: joinField(item.events, 'actual'), forecast: joinField(item.events, 'forecast'),
+    previous: joinField(item.events, 'previous'), prev_initial: joinField(item.events, 'prevInitial'),
+    unit: joinField(item.events, 'unit'), ccy: joinField(item.events, 'ccy'),
+    importance: joinField(item.events, 'importance'), region: joinField(item.events, 'region'),
+    window_start_utc: item.windowStartUTC, window_end_exclusive_utc: item.windowEndExclusiveUTC,
+    rows: item.rows || 0, status: item.status, file: item.file,
+  }));
+}
+
+function writeIndex(directory, tables) {
+  const records = indexRecords(tables);
+  fs.writeFileSync(path.join(directory, 'index.csv'), csv(Object.keys(records[0]), records));
+  return records.length;
+}
+
 function candleCsv(candles, eventTime) {
   return csv(FIELDS, candles.map(([time, open, high, low, close, volume]) => ({
     event_time_utc: new Date(eventTime).toISOString(), event_timestamp_ms: eventTime,
@@ -96,6 +119,12 @@ async function fetchWindow(exchange, eventTime) {
 
 async function main() {
   if (!process.argv[2]) throw new Error('Expected input calendar CSV path');
+  if (process.argv[2] === '--rebuild-index') {
+    const directory = path.resolve(process.argv[3] || '');
+    const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'manifest.json'), 'utf8'));
+    console.log(JSON.stringify({ directory, rows: writeIndex(directory, manifest.tables) }));
+    return;
+  }
   const input = path.resolve(process.argv[2]);
   const output = process.argv[3] ? path.resolve(process.argv[3]) : path.join(path.dirname(input), path.basename(input, '.csv') + '-binance-btcusdt-1s');
   const groups = groupEvents(fs.readFileSync(input, 'utf8'));
@@ -142,13 +171,10 @@ async function main() {
   manifest.complete = manifest.tables.length === groups.length && manifest.tables.every(item => item.status === 'complete');
   manifest.finishedAt = new Date().toISOString();
   saveManifest();
-  const index = manifest.tables.map(item => ({ event_time_utc: item.eventTimeUTC, event_timestamp_ms: item.eventTimestampMs,
-    calendar_ids: item.events.map(event => event.calendarId).join(';'), events_zh: item.events.map(event => event.event_zh || event.event).join('；'),
-    window_start_utc: item.windowStartUTC, window_end_exclusive_utc: item.windowEndExclusiveUTC, rows: item.rows || 0, status: item.status, file: item.file }));
-  fs.writeFileSync(path.join(output, 'index.csv'), csv(Object.keys(index[0]), index));
+  writeIndex(output, manifest.tables);
   console.log('SUMMARY ' + JSON.stringify({ output, complete: manifest.complete, tables: manifest.tables.length, rows: manifest.tables.reduce((n, item) => n + (item.rows || 0), 0) }));
   if (!manifest.complete) process.exitCode = 1;
 }
 
-module.exports = { groupEvents, validateCandles, candleCsv, readExisting, fetchWindow, EXPECTED };
+module.exports = { groupEvents, validateCandles, candleCsv, readExisting, fetchWindow, indexRecords, EXPECTED };
 if (require.main === module) main().catch(error => { console.error('Collector failed: ' + error.constructor.name); process.exitCode = 1; });

@@ -22,6 +22,18 @@
   #title { font-size: 15px; font-weight: 600; }
   #stats { color: #868993; display: flex; gap: 14px; flex-wrap: wrap; }
   #stats b { color: #d1d4dc; font-weight: 600; }
+  #cursor { color: #868993; display: flex; gap: 14px; flex-wrap: wrap; min-height: 20px; }
+  #cursor b { color: #d1d4dc; font-weight: 600; }
+  #cursor b.up { color: #26a69a; }
+  #cursor b.down { color: #ef5350; }
+  #values { padding: 8px 14px; border-bottom: 1px solid #2a2e39; display: flex; gap: 8px; flex-wrap: wrap; }
+  .value { border: 1px solid #2a2e39; border-radius: 4px; padding: 6px 10px; background: #1a1e2a; }
+  .value strong { display: block; font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+  .value dl { margin: 0; display: flex; gap: 10px; font-size: 12px; color: #868993; }
+  .value dt, .value dd { margin: 0; display: inline; }
+  .value dd { color: #d1d4dc; font-weight: 600; }
+  .value dd.up { color: #26a69a; }
+  .value dd.down { color: #ef5350; }
   .spacer { margin-left: auto; }
   button, select { background: #1e222d; border: 1px solid #2a2e39; color: inherit; border-radius: 4px; padding: 5px 10px; cursor: pointer; font: inherit; }
   button:hover:not(:disabled), select:hover { border-color: #4a4f5c; }
@@ -56,7 +68,9 @@
     <button id="prev" title="上一条（←）">上一条</button>
     <button id="next" title="下一条（→）">下一条</button>
   </header>
+  <div id="values"></div>
   <div id="chart"><canvas id="canvas"></canvas><div id="tip"></div></div>
+  <div id="cursor"></div>
   <div id="note"></div>
   <div id="error"></div>
 </main>
@@ -65,7 +79,7 @@ const DIR = (new URLSearchParams(location.search).get('dir') || 'binance-btcusdt
 const $ = id => document.getElementById(id);
 const canvas = $('canvas'), ctx = canvas.getContext('2d');
 const MIN_VISIBLE = 10;
-let events = [], filtered = [], current = -1, candles = [], rawRows = [], layout = null, hover = -1;
+let events = [], filtered = [], current = -1, candles = [], rawRows = [], layout = null, hover = -1, eventPrice = 0, eventTime = 0;
 let view = { start: 0, count: 0 };
 
 const visible = () => candles.slice(view.start, view.start + view.count);
@@ -201,42 +215,111 @@ function render() {
   pending = requestAnimationFrame(() => { pending = 0; draw(); });
 }
 
-function showStats(rows) {
-  const eventIndex = rows.findIndex(r => Number(r.relative_seconds) === 0);
-  const base = Number(rows[eventIndex].open);
-  const before = Number(rows[0].open), after = Number(rows[rows.length - 1].close);
-  const highest = Math.max(...rows.map(r => Number(r.high))), lowest = Math.min(...rows.map(r => Number(r.low)));
-  const percent = value => ((value / base - 1) * 100).toFixed(2) + '%';
-  $('stats').innerHTML = '';
-  [['公布时价格', base.toFixed(2)], ['前30分钟', before.toFixed(2) + '（' + percent(before) + '）'],
-   ['后60分钟', after.toFixed(2) + '（' + percent(after) + '）'], ['窗口最高', highest.toFixed(2)], ['窗口最低', lowest.toFixed(2)],
-   ['振幅', ((highest / lowest - 1) * 100).toFixed(2) + '%']].forEach(([label, value]) => {
+function fill(target, entries) {
+  target.innerHTML = '';
+  for (const [label, value, tone] of entries) {
     const node = document.createElement('span');
     node.append(label + ' ');
-    const strong = document.createElement('b'); strong.textContent = value; node.append(strong);
-    $('stats').append(node);
+    const strong = document.createElement('b');
+    strong.textContent = value;
+    if (tone) strong.className = tone;
+    node.append(strong);
+    target.append(node);
+  }
+}
+
+const tone = change => change > 0 ? 'up' : change < 0 ? 'down' : '';
+const signed = change => (change > 0 ? '+' : '') + change.toFixed(3) + '%';
+
+// Values arrive as unit-bearing text such as "162K" or "-0.4%", so compare them numerically only when both parse.
+function numeric(text) {
+  const match = /^-?[\d.]+/.exec(String(text).replace(/[^\d.\-]/g, ''));
+  return match ? Number(match[0]) : NaN;
+}
+
+function showValues(item) {
+  const split = key => String(item[key] || '').split(';');
+  const names = String(item.events_zh || '').split('；');
+  const actual = split('actual'), forecast = split('forecast'), previous = split('previous'), prevInitial = split('prev_initial');
+  $('values').innerHTML = '';
+  names.forEach((name, i) => {
+    const card = document.createElement('div');
+    card.className = 'value';
+    const heading = document.createElement('strong');
+    heading.textContent = name;
+    const list = document.createElement('dl');
+    const beat = numeric(actual[i]) - numeric(forecast[i]);
+    [['公布值', actual[i], Number.isFinite(beat) ? tone(beat) : ''], ['预期值', forecast[i], ''],
+     ['前值', previous[i], ''], ['前值初值', prevInitial[i], '']].forEach(([label, value, cls]) => {
+      if (!value) return;
+      const dt = document.createElement('dt'); dt.textContent = label + ' ';
+      const dd = document.createElement('dd'); dd.textContent = value; dd.className = cls;
+      list.append(dt, dd);
+    });
+    if (!list.children.length) {
+      const dt = document.createElement('dt'); dt.textContent = '无数值事件';
+      list.append(dt);
+    }
+    card.append(heading, list);
+    $('values').append(card);
   });
 }
 
+function showCursor(candle) {
+  if (!candle) return fill($('cursor'), [['光标', '移到 K 线上查看时间与相对公布时刻的涨跌幅']]);
+  const change = (candle.close / eventPrice - 1) * 100;
+  const sign = candle.second >= 0 ? '+' : '';
+  fill($('cursor'), [
+    ['光标时间', beijing(new Date(eventTime + candle.second * 1000).toISOString())],
+    ['距公布', sign + candle.second + ' 秒'],
+    ['收盘价', candle.close.toFixed(2)],
+    ['较公布时刻', signed(change), tone(change)],
+  ]);
+}
+
+function showStats(rows) {
+  const eventIndex = rows.findIndex(r => Number(r.relative_seconds) === 0);
+  const base = Number(rows[eventIndex].open);
+  eventPrice = base;
+  const before = Number(rows[0].open), after = Number(rows[rows.length - 1].close);
+  const highest = Math.max(...rows.map(r => Number(r.high))), lowest = Math.min(...rows.map(r => Number(r.low)));
+  const percent = value => ((value / base - 1) * 100).toFixed(2) + '%';
+  fill($('stats'), [
+    ['公布时价格', base.toFixed(2)],
+    ['前30分钟', before.toFixed(2) + '（' + percent(before) + '）'],
+    ['后60分钟', after.toFixed(2) + '（' + percent(after) + '）'],
+    ['窗口最高', highest.toFixed(2)],
+    ['窗口最低', lowest.toFixed(2)],
+    ['振幅', ((highest / lowest - 1) * 100).toFixed(2) + '%'],
+  ]);
+}
+
+let loadToken = 0;
 async function select(index) {
   if (index < 0 || index >= filtered.length) return;
+  const token = ++loadToken;
   current = index;
   renderList();
   const active = $('list').querySelector('[aria-current="true"]');
   if (active) active.scrollIntoView({ block: 'nearest' });
   const item = filtered[index];
   $('title').textContent = item.events_zh;
+  showValues(item);
   $('prev').disabled = index === 0;
   $('next').disabled = index === filtered.length - 1;
   try {
-    rawRows = await loadCsv(item.file);
+    const rows = await loadCsv(item.file);
+    if (token !== loadToken) return;
+    rawRows = rows;
     candles = aggregate(rawRows, Number($('bucket').value));
+    eventTime = Number(item.event_timestamp_ms);
     resetView();
     showStats(rawRows);
+    showCursor(null);
     $('note').textContent = '公布时间 ' + beijing(item.event_time_utc) + '（北京时间） · ' + item.event_time_utc + ' · 币安 BTC/USDT 现货 · ' +
       rawRows.length + ' 根秒线聚合为 ' + candles.length + ' 根 · 滚轮缩放，按住拖动平移，双击还原 · 文件 ' + item.file;
     draw();
-  } catch (error) { fail(error); }
+  } catch (error) { if (token === loadToken) fail(error); }
 }
 
 let drag = null;
@@ -253,6 +336,7 @@ canvas.addEventListener('mousemove', event => {
   if (drag) {
     panTo(drag.start - (event.clientX - drag.x) / layout.step);
     hover = -1;
+    showCursor(null);
     render();
     return;
   }
@@ -261,8 +345,9 @@ canvas.addEventListener('mousemove', event => {
   const index = Math.floor((x - layout.left) / layout.step);
   hover = index >= 0 && index < view.count ? index : -1;
   const tip = $('tip');
-  if (hover < 0) { tip.style.display = 'none'; render(); return; }
+  if (hover < 0) { tip.style.display = 'none'; showCursor(null); render(); return; }
   const candle = visible()[hover];
+  showCursor(candle);
   const sign = candle.second >= 0 ? '+' : '';
   tip.textContent = '距公布 ' + sign + candle.second + ' 秒\n开 ' + candle.open.toFixed(2) + '\n高 ' + candle.high.toFixed(2) +
     '\n低 ' + candle.low.toFixed(2) + '\n收 ' + candle.close.toFixed(2) + '\n量 ' + candle.volume.toFixed(5) + ' BTC';
@@ -271,7 +356,7 @@ canvas.addEventListener('mousemove', event => {
   tip.style.top = Math.min(event.clientY - rect.top + 14, rect.height - tip.offsetHeight - 8) + 'px';
   render();
 });
-canvas.addEventListener('mouseleave', () => { if (drag) return; hover = -1; $('tip').style.display = 'none'; render(); });
+canvas.addEventListener('mouseleave', () => { if (drag) return; hover = -1; $('tip').style.display = 'none'; showCursor(null); render(); });
 canvas.addEventListener('wheel', event => {
   if (!layout || !candles.length) return;
   event.preventDefault();
