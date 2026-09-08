@@ -9,16 +9,24 @@ const AFTER = 3600000;
 const EXPECTED = (BEFORE + AFTER) / 1000;
 const FIELDS = ['event_time_utc', 'event_timestamp_ms', 'timestamp_ms', 'time_utc', 'relative_seconds', 'open', 'high', 'low', 'close', 'volume_btc'];
 
+// Accepts the OKX calendar export and the official schedule export, which use different column names.
 function groupEvents(text) {
   const records = parse(text, { columns: true, bom: true, skip_empty_lines: true });
   const groups = new Map();
   for (const record of records) {
-    const time = Number(record.date);
-    if (!record.date || !Number.isSafeInteger(time) || time % 1000 !== 0 || !Number.isFinite(new Date(time).getTime())) throw new Error('Invalid event timestamp');
-    if (record.dateSpan !== '0') throw new Error('Event time is not precise: ' + record.calendarId);
-    if (record.dateUTC && Date.parse(record.dateUTC) !== time) throw new Error('Event date columns disagree');
+    const raw = record.date ?? record.event_timestamp_ms;
+    const time = Number(raw);
+    if (!raw || !Number.isSafeInteger(time) || time % 1000 !== 0 || !Number.isFinite(new Date(time).getTime())) throw new Error('Invalid event timestamp');
+    if (record.date && record.dateSpan !== '0') throw new Error('Event time is not precise: ' + record.calendarId);
+    const iso = record.dateUTC || record.event_time_utc;
+    if (iso && Date.parse(iso) !== time) throw new Error('Event date columns disagree');
+    const event = record.date ? record : {
+      calendarId: record.event_en + '@' + time, event: record.event_en, event_zh: record.event_zh,
+      actual: '', forecast: '', previous: '', prevInitial: '', unit: '', ccy: '',
+      importance: record.importance, region: record.region, source: record.source, note: record.note,
+    };
     if (!groups.has(time)) groups.set(time, []);
-    groups.get(time).push(record);
+    groups.get(time).push(event);
   }
   if (!groups.size) throw new Error('No events in input');
   return [...groups.entries()].sort((a, b) => a[0] - b[0]);
@@ -129,6 +137,10 @@ async function main() {
   const output = process.argv[3] ? path.resolve(process.argv[3]) : path.join(path.dirname(input), path.basename(input, '.csv') + '-binance-btcusdt-1s');
   const groups = groupEvents(fs.readFileSync(input, 'utf8'));
   fs.mkdirSync(output, { recursive: true });
+  // Preserve tables already collected into this directory from other calendars.
+  const manifestPath = path.join(output, 'manifest.json');
+  const previous = fs.existsSync(manifestPath) ? JSON.parse(fs.readFileSync(manifestPath, 'utf8')).tables || [] : [];
+  const keptTables = previous.filter(item => item.status === 'complete' && !groups.some(([time]) => time === item.eventTimestampMs));
   const env = { ...require('dotenv').parse(fs.readFileSync(path.resolve(__dirname, '../.env'))), ...process.env };
   const exchange = new ccxt.binance({ enableRateLimit: true, rateLimit: 200, timeout: 30000, options: { defaultType: 'spot', fetchMarkets: { types: ['spot'] } } });
   // Match the project's node-fetch transport because native fetch is incompatible with the SOCKS agent.
@@ -141,9 +153,10 @@ async function main() {
     source: path.relative(path.resolve(__dirname, '..'), input), exchange: 'binance', marketType: 'spot', symbol: 'BTC/USDT', timeframe: '1s', ccxtVersion: ccxt.version,
     window: '[event - 30 minutes, event + 60 minutes)', expectedRowsPerTable: EXPECTED,
     eventRecords: groups.reduce((n, [, events]) => n + events.length, 0), uniqueEventTimes: groups.length,
+    retainedFromPreviousRun: keptTables.length,
     startedAt: new Date().toISOString(), complete: false, tables: [],
   };
-  const saveManifest = () => fs.writeFileSync(path.join(output, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  const saveManifest = () => fs.writeFileSync(manifestPath, JSON.stringify({ ...manifest, tables: [...keptTables, ...manifest.tables].sort((a, b) => a.eventTimestampMs - b.eventTimestampMs) }, null, 2));
   try {
     await exchange.loadMarkets();
     assert(exchange.market('BTC/USDT').spot && exchange.timeframes['1s']);
@@ -171,8 +184,9 @@ async function main() {
   manifest.complete = manifest.tables.length === groups.length && manifest.tables.every(item => item.status === 'complete');
   manifest.finishedAt = new Date().toISOString();
   saveManifest();
-  writeIndex(output, manifest.tables);
-  console.log('SUMMARY ' + JSON.stringify({ output, complete: manifest.complete, tables: manifest.tables.length, rows: manifest.tables.reduce((n, item) => n + (item.rows || 0), 0) }));
+  const allTables = [...keptTables, ...manifest.tables].sort((a, b) => a.eventTimestampMs - b.eventTimestampMs);
+  writeIndex(output, allTables);
+  console.log('SUMMARY ' + JSON.stringify({ output, complete: manifest.complete, newTables: manifest.tables.length, retained: keptTables.length, totalTables: allTables.length, rows: allTables.reduce((n, item) => n + (item.rows || 0), 0) }));
   if (!manifest.complete) process.exitCode = 1;
 }
 

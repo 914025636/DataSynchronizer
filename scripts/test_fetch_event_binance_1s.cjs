@@ -13,6 +13,18 @@ test('Group by timestamp, preserving different simultaneous events and quoted CS
   assert.throws(() => groupEvents('date,dateSpan\n' + time + ',1'));
 });
 
+test('Read the official schedule columns and merge events sharing one release time', () => {
+  const header = 'event_time_utc,event_timestamp_ms,event_en,event_zh,region,importance,source,note\r\n';
+  const row = (name, zh) => new Date(time).toISOString() + ',' + time + ',' + name + ',' + zh + ',United States,3,BLS,note\r\n';
+  const groups = groupEvents('\ufeff' + header + row('Non Farm Payrolls', '非农就业人数') + row('Unemployment Rate', '失业率'));
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0][0], time);
+  assert.equal(groups[0][1].length, 2);
+  assert.equal(groups[0][1][1].event_zh, '失业率');
+  assert.equal(groups[0][1][0].actual, '', 'The schedule carries no published values');
+  assert.throws(() => groupEvents(header + '2026-01-01T00:00:00.000Z,' + time + ',E,中,United States,3,BLS,n'), /disagree/);
+});
+
 test('Require every second and valid OHLCV, allowing zero-volume candles', () => {
   validateCandles(candles, time);
   assert.throws(() => validateCandles(candles.slice(1), time));
