@@ -1,0 +1,549 @@
+{
+  "dataset": "binance-paxgusdt-spot-1s-us-important-events-2026-09-09",
+  "minActiveRatio": 0.05,
+  "usableWindows": 106,
+  "allWindows": 159,
+  "config": {
+    "volumeMultiple": 5,
+    "sigmaMultiple": 3,
+    "trailMultiple": 1.5,
+    "stopFloor": 0.1,
+    "maxHoldSeconds": 3600
+  },
+  "families": [
+    {
+      "family": "非农就业人数",
+      "windows": 32,
+      "triggered": 30,
+      "triggerRate": 93.8,
+      "trades": 30,
+      "winRate": 56.7,
+      "average": 0.225,
+      "median": 0.118,
+      "total": 6.74,
+      "profitFactor": 6.03,
+      "best": 1.1,
+      "worst": -0.41,
+      "net010": 3.74,
+      "confidence": {
+        "low": 0.081,
+        "high": 0.357,
+        "positiveShare": 100
+      },
+      "concentration": {
+        "topTradeShare": 16.4,
+        "top3Share": 46.4,
+        "totalExclTop": 5.64,
+        "averageExclTop": 0.194
+      },
+      "shock": {
+        "medianRange": 0.088,
+        "medianSurge": 62.9,
+        "medianEntrySecond": 1,
+        "earlyShare": 66.7,
+        "longShare": 53.3
+      },
+      "persistence": {
+        "same60s": 56.7,
+        "same300s": 70,
+        "same900s": 70,
+        "same3000s": 63.3
+      },
+      "baselineVolatility": {
+        "medianSigma": 0.0069,
+        "medianActiveRatio": 0.112
+      },
+      "exit": {
+        "trails": 29,
+        "timeouts": 1,
+        "medianHoldSeconds": 137
+      },
+      "byEntryTiming": {
+        "early": {
+          "trades": 20,
+          "winRate": 60,
+          "average": 0.286,
+          "median": 0.136,
+          "total": 5.71,
+          "profitFactor": 9.11,
+          "best": 1.1,
+          "worst": -0.1,
+          "net010": 3.71
+        },
+        "late": {
+          "trades": 10,
+          "winRate": 50,
+          "average": 0.103,
+          "median": 0.036,
+          "total": 1.03,
+          "profitFactor": 2.62,
+          "best": 0.76,
+          "worst": -0.41,
+          "net010": 0.03
+        }
+      },
+      "byYear": [
+        {
+          "year": "2023",
+          "trades": 3,
+          "winRate": 66.7,
+          "average": 0.274,
+          "median": 0.102,
+          "total": 0.82,
+          "profitFactor": 19.24,
+          "best": 0.76,
+          "worst": -0.05,
+          "net010": 0.52
+        },
+        {
+          "year": "2024",
+          "trades": 8,
+          "winRate": 37.5,
+          "average": 0.007,
+          "median": -0.023,
+          "total": 0.05,
+          "profitFactor": 1.08,
+          "best": 0.44,
+          "worst": -0.41,
+          "net010": -0.75
+        },
+        {
+          "year": "2025",
+          "trades": 10,
+          "winRate": 70,
+          "average": 0.179,
+          "median": 0.15,
+          "total": 1.79,
+          "profitFactor": 9.32,
+          "best": 0.74,
+          "worst": -0.1,
+          "net010": 0.79
+        },
+        {
+          "year": "2026",
+          "trades": 9,
+          "winRate": 55.6,
+          "average": 0.453,
+          "median": 0.449,
+          "total": 4.08,
+          "profitFactor": 12.32,
+          "best": 1.1,
+          "worst": -0.1,
+          "net010": 3.18
+        }
+      ]
+    },
+    {
+      "family": "美联储利率决议",
+      "windows": 19,
+      "triggered": 13,
+      "triggerRate": 68.4,
+      "trades": 13,
+      "winRate": 69.2,
+      "average": 0.127,
+      "median": 0.066,
+      "total": 1.65,
+      "profitFactor": 6.32,
+      "best": 0.56,
+      "worst": -0.1,
+      "net010": 0.35,
+      "confidence": {
+        "low": 0.019,
+        "high": 0.252,
+        "positiveShare": 99.3
+      },
+      "concentration": {
+        "topTradeShare": 33.9,
+        "top3Share": 83.1,
+        "totalExclTop": 1.09,
+        "averageExclTop": 0.091
+      },
+      "shock": {
+        "medianRange": 0.055,
+        "medianSurge": 13.9,
+        "medianEntrySecond": 1,
+        "earlyShare": 61.5,
+        "longShare": 46.2
+      },
+      "persistence": {
+        "same60s": 61.5,
+        "same300s": 61.5,
+        "same900s": 69.2,
+        "same3000s": 76.9
+      },
+      "baselineVolatility": {
+        "medianSigma": 0.0065,
+        "medianActiveRatio": 0.095
+      },
+      "exit": {
+        "trails": 13,
+        "timeouts": 0,
+        "medianHoldSeconds": 29
+      },
+      "byEntryTiming": {
+        "early": {
+          "trades": 8,
+          "winRate": 75,
+          "average": 0.142,
+          "median": 0.159,
+          "total": 1.14,
+          "profitFactor": 8.34,
+          "best": 0.54,
+          "worst": -0.1,
+          "net010": 0.34
+        },
+        "late": {
+          "trades": 5,
+          "winRate": 60,
+          "average": 0.101,
+          "median": 0.038,
+          "total": 0.51,
+          "profitFactor": 4.29,
+          "best": 0.56,
+          "worst": -0.1,
+          "net010": 0.01
+        }
+      },
+      "byYear": [
+        {
+          "year": "2023",
+          "trades": 1,
+          "winRate": 100,
+          "average": 0.557,
+          "median": 0.557,
+          "total": 0.56,
+          "profitFactor": null,
+          "best": 0.56,
+          "worst": 0.56,
+          "net010": 0.46
+        },
+        {
+          "year": "2024",
+          "trades": 3,
+          "winRate": 66.7,
+          "average": 0.124,
+          "median": 0.159,
+          "total": 0.37,
+          "profitFactor": 7.62,
+          "best": 0.27,
+          "worst": -0.06,
+          "net010": 0.07
+        },
+        {
+          "year": "2025",
+          "trades": 5,
+          "winRate": 60,
+          "average": -0.007,
+          "median": 0.009,
+          "total": -0.03,
+          "profitFactor": 0.78,
+          "best": 0.08,
+          "worst": -0.1,
+          "net010": -0.53
+        },
+        {
+          "year": "2026",
+          "trades": 4,
+          "winRate": 75,
+          "average": 0.187,
+          "median": 0.24,
+          "total": 0.75,
+          "profitFactor": 8.64,
+          "best": 0.54,
+          "worst": -0.1,
+          "net010": 0.35
+        }
+      ]
+    },
+    {
+      "family": "核心通胀率同比",
+      "windows": 29,
+      "triggered": 27,
+      "triggerRate": 93.1,
+      "trades": 27,
+      "winRate": 55.6,
+      "average": 0.075,
+      "median": 0.046,
+      "total": 2.03,
+      "profitFactor": 1.88,
+      "best": 1,
+      "worst": -0.76,
+      "net010": -0.67,
+      "confidence": {
+        "low": -0.064,
+        "high": 0.19,
+        "positiveShare": 85.2
+      },
+      "concentration": {
+        "topTradeShare": 49.4,
+        "top3Share": 104.3,
+        "totalExclTop": 1.03,
+        "averageExclTop": 0.039
+      },
+      "shock": {
+        "medianRange": 0.113,
+        "medianSurge": 54.4,
+        "medianEntrySecond": 2,
+        "earlyShare": 59.3,
+        "longShare": 85.2
+      },
+      "persistence": {
+        "same60s": 59.3,
+        "same300s": 55.6,
+        "same900s": 63,
+        "same3000s": 55.6
+      },
+      "baselineVolatility": {
+        "medianSigma": 0.0069,
+        "medianActiveRatio": 0.128
+      },
+      "exit": {
+        "trails": 25,
+        "timeouts": 2,
+        "medianHoldSeconds": 73
+      },
+      "byEntryTiming": {
+        "early": {
+          "trades": 16,
+          "winRate": 62.5,
+          "average": 0.192,
+          "median": 0.112,
+          "total": 3.07,
+          "profitFactor": 7.59,
+          "best": 1,
+          "worst": -0.13,
+          "net010": 1.47
+        },
+        "late": {
+          "trades": 11,
+          "winRate": 45.5,
+          "average": -0.095,
+          "median": -0.095,
+          "total": -1.04,
+          "profitFactor": 0.44,
+          "best": 0.36,
+          "worst": -0.76,
+          "net010": -2.14
+        }
+      },
+      "byYear": [
+        {
+          "year": "2023",
+          "trades": 3,
+          "winRate": 0,
+          "average": -0.354,
+          "median": -0.173,
+          "total": -1.06,
+          "profitFactor": 0,
+          "best": -0.13,
+          "worst": -0.76,
+          "net010": -1.36
+        },
+        {
+          "year": "2024",
+          "trades": 6,
+          "winRate": 50,
+          "average": 0.064,
+          "median": 0.214,
+          "total": 0.39,
+          "profitFactor": 1.51,
+          "best": 0.57,
+          "worst": -0.54,
+          "net010": -0.21
+        },
+        {
+          "year": "2025",
+          "trades": 10,
+          "winRate": 70,
+          "average": 0.076,
+          "median": 0.087,
+          "total": 0.76,
+          "profitFactor": 3.65,
+          "best": 0.34,
+          "worst": -0.19,
+          "net010": -0.24
+        },
+        {
+          "year": "2026",
+          "trades": 8,
+          "winRate": 62.5,
+          "average": 0.243,
+          "median": 0.112,
+          "total": 1.94,
+          "profitFactor": 10.06,
+          "best": 1,
+          "worst": -0.09,
+          "net010": 1.14
+        }
+      ]
+    },
+    {
+      "family": "生产者价格指数环比",
+      "windows": 26,
+      "triggered": 14,
+      "triggerRate": 53.8,
+      "trades": 14,
+      "winRate": 35.7,
+      "average": -0.002,
+      "median": -0.025,
+      "total": -0.03,
+      "profitFactor": 0.97,
+      "best": 0.43,
+      "worst": -0.21,
+      "net010": -1.43,
+      "confidence": {
+        "low": -0.079,
+        "high": 0.086,
+        "positiveShare": 44.8
+      },
+      "concentration": {
+        "topTradeShare": -1379.2,
+        "top3Share": -2290.5,
+        "totalExclTop": -0.46,
+        "averageExclTop": -0.035
+      },
+      "shock": {
+        "medianRange": 0.093,
+        "medianSurge": 105.2,
+        "medianEntrySecond": 1,
+        "earlyShare": 78.6,
+        "longShare": 71.4
+      },
+      "persistence": {
+        "same60s": 71.4,
+        "same300s": 50,
+        "same900s": 42.9,
+        "same3000s": 35.7
+      },
+      "baselineVolatility": {
+        "medianSigma": 0.0078,
+        "medianActiveRatio": 0.118
+      },
+      "exit": {
+        "trails": 14,
+        "timeouts": 0,
+        "medianHoldSeconds": 143
+      },
+      "byEntryTiming": {
+        "early": {
+          "trades": 11,
+          "winRate": 36.4,
+          "average": 0.022,
+          "median": -0.025,
+          "total": 0.24,
+          "profitFactor": 1.44,
+          "best": 0.43,
+          "worst": -0.21,
+          "net010": -0.86
+        },
+        "late": {
+          "trades": 3,
+          "winRate": 33.3,
+          "average": -0.092,
+          "median": -0.169,
+          "total": -0.27,
+          "profitFactor": 0.22,
+          "best": 0.08,
+          "worst": -0.18,
+          "net010": -0.57
+        }
+      },
+      "byYear": [
+        {
+          "year": "2023",
+          "trades": 1,
+          "winRate": 0,
+          "average": -0.025,
+          "median": -0.025,
+          "total": -0.03,
+          "profitFactor": 0,
+          "best": -0.03,
+          "worst": -0.03,
+          "net010": -0.13
+        },
+        {
+          "year": "2024",
+          "trades": 1,
+          "winRate": 0,
+          "average": -0.039,
+          "median": -0.039,
+          "total": -0.04,
+          "profitFactor": 0,
+          "best": -0.04,
+          "worst": -0.04,
+          "net010": -0.14
+        },
+        {
+          "year": "2025",
+          "trades": 7,
+          "winRate": 57.1,
+          "average": 0.028,
+          "median": 0.076,
+          "total": 0.2,
+          "profitFactor": 1.8,
+          "best": 0.16,
+          "worst": -0.17,
+          "net010": -0.5
+        },
+        {
+          "year": "2026",
+          "trades": 5,
+          "winRate": 20,
+          "average": -0.033,
+          "median": -0.11,
+          "total": -0.16,
+          "profitFactor": 0.72,
+          "best": 0.43,
+          "worst": -0.21,
+          "net010": -0.66
+        }
+      ]
+    }
+  ],
+  "ranking": [
+    {
+      "family": "非农就业人数",
+      "trades": 30,
+      "average": 0.225,
+      "net010": 3.74,
+      "ciLow": 0.081,
+      "ciHigh": 0.357,
+      "positiveShare": 100,
+      "averageExclTop": 0.194,
+      "verdict": "keep"
+    },
+    {
+      "family": "美联储利率决议",
+      "trades": 13,
+      "average": 0.127,
+      "net010": 0.35,
+      "ciLow": 0.019,
+      "ciHigh": 0.252,
+      "positiveShare": 99.3,
+      "averageExclTop": 0.091,
+      "verdict": "keep"
+    },
+    {
+      "family": "核心通胀率同比",
+      "trades": 27,
+      "average": 0.075,
+      "net010": -0.67,
+      "ciLow": -0.064,
+      "ciHigh": 0.19,
+      "positiveShare": 85.2,
+      "averageExclTop": 0.039,
+      "verdict": "drop"
+    },
+    {
+      "family": "生产者价格指数环比",
+      "trades": 14,
+      "average": -0.002,
+      "net010": -1.43,
+      "ciLow": -0.079,
+      "ciHigh": 0.086,
+      "positiveShare": 44.8,
+      "averageExclTop": -0.035,
+      "verdict": "drop"
+    }
+  ]
+}

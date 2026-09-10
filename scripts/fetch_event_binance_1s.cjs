@@ -7,7 +7,10 @@ const { parse } = require('csv-parse/sync');
 const BEFORE = 1800000;
 const AFTER = 3600000;
 const EXPECTED = (BEFORE + AFTER) / 1000;
-const FIELDS = ['event_time_utc', 'event_timestamp_ms', 'timestamp_ms', 'time_utc', 'relative_seconds', 'open', 'high', 'low', 'close', 'volume_btc'];
+const SYMBOL = process.env.EVENT_SYMBOL || 'BTC/USDT';
+const SLUG = SYMBOL.replace('/', '');
+const VOLUME_FIELD = 'volume_' + SYMBOL.split('/')[0].toLowerCase();
+const FIELDS = ['event_time_utc', 'event_timestamp_ms', 'timestamp_ms', 'time_utc', 'relative_seconds', 'open', 'high', 'low', 'close', VOLUME_FIELD];
 
 // Accepts the OKX calendar export and the official schedule export, which use different column names.
 function groupEvents(text) {
@@ -74,7 +77,7 @@ function candleCsv(candles, eventTime) {
   return csv(FIELDS, candles.map(([time, open, high, low, close, volume]) => ({
     event_time_utc: new Date(eventTime).toISOString(), event_timestamp_ms: eventTime,
     timestamp_ms: time, time_utc: new Date(time).toISOString(), relative_seconds: (time - eventTime) / 1000,
-    open, high, low, close, volume_btc: volume,
+    open, high, low, close, [VOLUME_FIELD]: volume,
   })));
 }
 
@@ -86,7 +89,7 @@ function readExisting(file, eventTime) {
     assert.equal(row.event_time_utc, new Date(eventTime).toISOString());
     assert.equal(row.time_utc, new Date(Number(row.timestamp_ms)).toISOString());
     assert.equal(Number(row.relative_seconds), (Number(row.timestamp_ms) - eventTime) / 1000);
-    return [row.timestamp_ms, row.open, row.high, row.low, row.close, row.volume_btc].map(Number);
+    return [row.timestamp_ms, row.open, row.high, row.low, row.close, row[VOLUME_FIELD]].map(Number);
   });
   validateCandles(candles, eventTime);
   return candles;
@@ -102,7 +105,7 @@ async function fetchWindow(exchange, eventTime) {
     let batch;
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        batch = await exchange.fetchOHLCV('BTC/USDT', '1s', cursor, 1000, { endTime: end - 1 });
+        batch = await exchange.fetchOHLCV(SYMBOL, '1s', cursor, 1000, { endTime: end - 1 });
         break;
       } catch (error) {
         if (!(error instanceof ccxt.NetworkError) || attempt === 3) throw error;
@@ -134,7 +137,7 @@ async function main() {
     return;
   }
   const input = path.resolve(process.argv[2]);
-  const output = process.argv[3] ? path.resolve(process.argv[3]) : path.join(path.dirname(input), path.basename(input, '.csv') + '-binance-btcusdt-1s');
+  const output = process.argv[3] ? path.resolve(process.argv[3]) : path.join(path.dirname(input), path.basename(input, '.csv') + '-binance-' + SLUG.toLowerCase() + '-1s');
   const groups = groupEvents(fs.readFileSync(input, 'utf8'));
   fs.mkdirSync(output, { recursive: true });
   // Preserve tables already collected into this directory from other calendars.
@@ -150,7 +153,7 @@ async function main() {
   if (socks) exchange.socksProxy = socks;
   else if (https) exchange.httpsProxy = https;
   const manifest = {
-    source: path.relative(path.resolve(__dirname, '..'), input), exchange: 'binance', marketType: 'spot', symbol: 'BTC/USDT', timeframe: '1s', ccxtVersion: ccxt.version,
+    source: path.relative(path.resolve(__dirname, '..'), input), exchange: 'binance', marketType: 'spot', symbol: SYMBOL, timeframe: '1s', ccxtVersion: ccxt.version,
     window: '[event - 30 minutes, event + 60 minutes)', expectedRowsPerTable: EXPECTED,
     eventRecords: groups.reduce((n, [, events]) => n + events.length, 0), uniqueEventTimes: groups.length,
     retainedFromPreviousRun: keptTables.length,
@@ -159,9 +162,9 @@ async function main() {
   const saveManifest = () => fs.writeFileSync(manifestPath, JSON.stringify({ ...manifest, tables: [...keptTables, ...manifest.tables].sort((a, b) => a.eventTimestampMs - b.eventTimestampMs) }, null, 2));
   try {
     await exchange.loadMarkets();
-    assert(exchange.market('BTC/USDT').spot && exchange.timeframes['1s']);
+    assert(exchange.market(SYMBOL).spot && exchange.timeframes['1s']);
     for (const [eventTime, events] of groups) {
-      const name = 'BTCUSDT-spot-1s-event-' + new Date(eventTime).toISOString().replace(/[:.]/g, '-') + '.csv';
+      const name = SLUG + '-spot-1s-event-' + new Date(eventTime).toISOString().replace(/[:.]/g, '-') + '.csv';
       const file = path.join(output, name);
       const item = { eventTimeUTC: new Date(eventTime).toISOString(), eventTimestampMs: eventTime, windowStartUTC: new Date(eventTime - BEFORE).toISOString(), windowEndExclusiveUTC: new Date(eventTime + AFTER).toISOString(), file: name, events };
       try {

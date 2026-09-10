@@ -1,0 +1,232 @@
+{
+  "dataset": "binance-paxgusdt-spot-1s-us-important-events-2026-09-09",
+  "minActiveRatio": 0.05,
+  "usableWindows": 106,
+  "trades": 84,
+  "config": {
+    "volumeMultiple": 5,
+    "sigmaMultiple": 3,
+    "trailMultiple": 1.5,
+    "stopFloor": 0.1,
+    "maxHoldSeconds": 3600
+  },
+  "triggerRateByCount": [
+    {
+      "eventCount": 1,
+      "windows": 45,
+      "triggered": 27,
+      "triggerRate": 60
+    },
+    {
+      "eventCount": 2,
+      "windows": 61,
+      "triggered": 57,
+      "triggerRate": 93.4
+    }
+  ],
+  "performanceByCount": [
+    {
+      "group": "同时发布 1 项",
+      "trades": 27,
+      "winRate": 51.9,
+      "average": 0.06,
+      "median": 0.009,
+      "total": 1.61,
+      "profitFactor": 2.33,
+      "net010": -1.09
+    },
+    {
+      "group": "同时发布 2 项",
+      "trades": 57,
+      "winRate": 56.1,
+      "average": 0.154,
+      "median": 0.087,
+      "total": 8.77,
+      "profitFactor": 3.4,
+      "net010": 3.07
+    }
+  ],
+  "welchTwoVsOne": 1.48,
+  "shockSizeByCount": [
+    {
+      "group": "同时发布 1 项",
+      "trades": 27,
+      "medianShockRange": 0.082,
+      "medianEntrySecond": 1,
+      "medianSurge": 31.3
+    },
+    {
+      "group": "同时发布 2 项",
+      "trades": 57,
+      "medianShockRange": 0.102,
+      "medianEntrySecond": 1,
+      "medianSurge": 62.2
+    }
+  ],
+  "familyByCount": [
+    {
+      "family": "非农就业人数",
+      "eventCount": 2,
+      "group": "非农就业人数",
+      "trades": 30,
+      "winRate": 56.7,
+      "average": 0.225,
+      "median": 0.118,
+      "total": 6.74,
+      "profitFactor": 6.03,
+      "net010": 3.74
+    },
+    {
+      "family": "美联储利率决议",
+      "eventCount": 1,
+      "group": "美联储利率决议",
+      "trades": 13,
+      "winRate": 69.2,
+      "average": 0.127,
+      "median": 0.066,
+      "total": 1.65,
+      "profitFactor": 6.32,
+      "net010": 0.35
+    },
+    {
+      "family": "核心通胀率同比",
+      "eventCount": 2,
+      "group": "核心通胀率同比",
+      "trades": 27,
+      "winRate": 55.6,
+      "average": 0.075,
+      "median": 0.046,
+      "total": 2.03,
+      "profitFactor": 1.88,
+      "net010": -0.67
+    },
+    {
+      "family": "生产者价格指数环比",
+      "eventCount": 1,
+      "group": "生产者价格指数环比",
+      "trades": 14,
+      "winRate": 35.7,
+      "average": -0.002,
+      "median": -0.025,
+      "total": -0.03,
+      "profitFactor": 0.97,
+      "net010": -1.43
+    }
+  ],
+  "withinSingleEvent": [
+    {
+      "group": "生产者价格指数环比",
+      "trades": 14,
+      "winRate": 35.7,
+      "average": -0.002,
+      "median": -0.025,
+      "total": -0.03,
+      "profitFactor": 0.97,
+      "net010": -1.43
+    },
+    {
+      "group": "美联储利率决议",
+      "trades": 13,
+      "winRate": 69.2,
+      "average": 0.127,
+      "median": 0.066,
+      "total": 1.65,
+      "profitFactor": 6.32,
+      "net010": 0.35
+    }
+  ],
+  "withinDoubleEvent": [
+    {
+      "group": "核心通胀率同比",
+      "trades": 27,
+      "winRate": 55.6,
+      "average": 0.075,
+      "median": 0.046,
+      "total": 2.03,
+      "profitFactor": 1.88,
+      "net010": -0.67
+    },
+    {
+      "group": "非农就业人数",
+      "trades": 30,
+      "winRate": 56.7,
+      "average": 0.225,
+      "median": 0.118,
+      "total": 6.74,
+      "profitFactor": 6.03,
+      "net010": 3.74
+    }
+  ],
+  "confounding": {
+    "note": "eventCount is fully determined by release identity in this calendar",
+    "bestSingle": {
+      "group": "美联储利率决议",
+      "trades": 13,
+      "winRate": 69.2,
+      "average": 0.127,
+      "median": 0.066,
+      "total": 1.65,
+      "profitFactor": 6.32,
+      "net010": 0.35
+    },
+    "worstDouble": {
+      "group": "核心通胀率同比",
+      "trades": 27,
+      "winRate": 55.6,
+      "average": 0.075,
+      "median": 0.046,
+      "total": 2.03,
+      "profitFactor": 1.88,
+      "net010": -0.67
+    },
+    "singleBeatsDouble": true
+  },
+  "earlyEntryByCount": [
+    {
+      "eventCount": 1,
+      "early": {
+        "group": "0-2 秒",
+        "trades": 19,
+        "winRate": 52.6,
+        "average": 0.073,
+        "median": 0.009,
+        "total": 1.38,
+        "profitFactor": 2.96,
+        "net010": -0.52
+      },
+      "late": {
+        "group": "3 秒以后",
+        "trades": 8,
+        "winRate": 50,
+        "average": 0.029,
+        "median": 0.038,
+        "total": 0.23,
+        "profitFactor": 1.46,
+        "net010": -0.57
+      }
+    },
+    {
+      "eventCount": 2,
+      "early": {
+        "group": "0-2 秒",
+        "trades": 36,
+        "winRate": 61.1,
+        "average": 0.244,
+        "median": 0.118,
+        "total": 8.79,
+        "profitFactor": 8.5,
+        "net010": 5.19
+      },
+      "late": {
+        "group": "3 秒以后",
+        "trades": 21,
+        "winRate": 47.6,
+        "average": -0.001,
+        "median": -0.015,
+        "total": -0.02,
+        "profitFactor": 0.99,
+        "net010": -2.12
+      }
+    }
+  ]
+}
