@@ -1,4 +1,5 @@
 const tableCalls: string[] = [];
+jest.mock('node-fetch', () => jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
 
 type MockSender = {
   connect: jest.Mock;
@@ -39,7 +40,8 @@ jest.mock('../logger', () => ({
   },
 }));
 
-process.env.QUESTDB_FLUSH_INTERVAL_MS = '0';
+process.env.QUESTDB_FLUSH_INTERVAL_MS = '25';
+process.env.QUESTDB_PROTOCOL = 'http';
 process.env.QUESTDB_FLUSH_TIMEOUT_MS = '20';
 
 import { QuestDBWriter } from '../questdb';
@@ -58,6 +60,7 @@ describe('QuestDBWriter market routing', () => {
     await QuestDBWriter.writeTrade('binance', 'BTC/USDT', 'buy', '100', '1', 'trade-1', 1000);
 
     expect(tableCalls).toEqual(['market_data_catalog', 'binance_btc_usdt_spot_trades']);
+    expect(sender.flush).toHaveBeenCalled();
     expect(sender.stringColumn).toHaveBeenCalledWith(
       'orderbook_delta_table',
       'binance_btc_usdt_spot_orderbook_delta',
@@ -95,8 +98,26 @@ describe('QuestDBWriter market routing', () => {
   });
 
   it('propagates an explicit flush failure to prevent acknowledgement', async () => {
+    await QuestDBWriter.flush();
     sender.flush.mockRejectedValueOnce(new Error('flush failed'));
 
     await expect(QuestDBWriter.flush()).rejects.toThrow('flush failed');
+  });
+
+  it('uses the same record key when a trade is replayed', async () => {
+    await QuestDBWriter.writeTrade('binance', 'BTC/USDT', 'buy', '100', '1', 'replayed', 2000);
+    await QuestDBWriter.writeTrade('binance', 'BTC/USDT', 'buy', '100', '1', 'replayed', 2000);
+    const keys = sender.symbol.mock.calls.filter(([name]) => name === 'record_key');
+    expect(keys).toHaveLength(2);
+    expect(keys[0][1]).toEqual(keys[1][1]);
+  });
+
+  it('uses stable level keys for replayed orderbook rows', async () => {
+    await QuestDBWriter.writeOrderbookDelta('binance', 'BTC/USDT', [[100, 1]], [[99, 0]], 3000, 20);
+    await QuestDBWriter.writeOrderbookDelta('binance', 'BTC/USDT', [[100, 1]], [[99, 0]], 3000, 20);
+    const keys = sender.symbol.mock.calls.filter(([name]) => name === 'record_key');
+    expect(keys[0][1]).toEqual(keys[2][1]);
+    expect(keys[1][1]).toEqual(keys[3][1]);
+    expect(keys[0][1]).not.toEqual(keys[1][1]);
   });
 });

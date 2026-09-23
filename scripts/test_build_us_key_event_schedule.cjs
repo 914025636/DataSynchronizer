@@ -30,6 +30,8 @@ test('Generated times match the real OKX calendar records already collected', ()
   assert.equal(easternToUtc('2026-09-04', 8, 30).getTime(), 1788525000000);
   assert.equal(easternToUtc('2026-08-12', 8, 30).getTime(), 1786537800000);
   assert.equal(easternToUtc('2026-07-29', 14, 0).getTime(), 1785348000000);
+  assert.equal(easternToUtc('2026-09-10', 8, 30).getTime(), 1789043400000);
+  assert.equal(easternToUtc('2026-09-11', 8, 30).getTime(), 1789129800000);
 });
 
 test('2024 dates resolve with the correct seasonal offset', () => {

@@ -1,4 +1,6 @@
 import { Sender } from '@questdb/nodejs-client';
+import fetch from 'node-fetch';
+import { createHash } from 'crypto';
 import { logger } from '../logger';
 import { questdbMarketTables, QuestDBMarketTables } from './table_names';
 
@@ -9,7 +11,7 @@ const DEFAULT_PORT_BY_PROTOCOL: Record<string, number> = {
   tcps: 9009,
 };
 
-const QUESTDB_PROTOCOL = (process.env.QUESTDB_PROTOCOL || 'tcp').toLowerCase();
+const QUESTDB_PROTOCOL = (process.env.QUESTDB_PROTOCOL || 'http').toLowerCase();
 const QUESTDB_HOST = process.env.QUESTDB_HOST || 'localhost';
 const QUESTDB_PORT =
   process.env.QUESTDB_PORT === undefined
@@ -17,6 +19,41 @@ const QUESTDB_PORT =
     : parseInt(process.env.QUESTDB_PORT, 10);
 
 const configStr = `${QUESTDB_PROTOCOL}::addr=${QUESTDB_HOST}:${QUESTDB_PORT};auto_flush=off;`;
+const schemaPromises = new Map<string, Promise<void>>();
+
+async function executeSchema(query: string): Promise<void> {
+  if (!['http', 'https'].includes(QUESTDB_PROTOCOL)) {
+    throw new Error('Reliable QuestDB ingestion requires QUESTDB_PROTOCOL=http and QUESTDB_PORT=9000');
+  }
+  const response = await fetch(`${QUESTDB_PROTOCOL}://${QUESTDB_HOST}:${QUESTDB_PORT}/exec?query=${encodeURIComponent(query)}`, {
+    timeout: 10000,
+  });
+  const result = await response.json();
+  if (!response.ok || result.error) throw new Error(result.error || `QuestDB schema HTTP ${response.status}`);
+}
+
+async function ensureTable(table: string, kind: 'trade' | 'orderbook'): Promise<void> {
+  let pending = schemaPromises.get(table);
+  if (!pending) {
+    pending = (async () => {
+      const columns = kind === 'trade'
+        ? 'side SYMBOL, price DOUBLE, quantity DOUBLE, trade_id STRING'
+        : 'side SYMBOL, update_type SYMBOL, price DOUBLE, qty DOUBLE, sequence DOUBLE, source_update_count DOUBLE';
+      await executeSchema(`CREATE TABLE IF NOT EXISTS ${table} (ts TIMESTAMP, exchange SYMBOL, symbol SYMBOL, ${columns}, record_key SYMBOL) TIMESTAMP(ts) PARTITION BY DAY WAL`);
+      await executeSchema(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS record_key SYMBOL`);
+      await executeSchema(`ALTER TABLE ${table} DEDUP ENABLE UPSERT KEYS(ts, record_key)`);
+    })().catch((error) => {
+      schemaPromises.delete(table);
+      throw error;
+    });
+    schemaPromises.set(table, pending);
+  }
+  await pending;
+}
+
+function recordKey(values: unknown[]): string {
+  return createHash('sha256').update(JSON.stringify(values)).digest('hex');
+}
 const flushInterval = Number(process.env.QUESTDB_FLUSH_INTERVAL_MS || 500);
 const flushTimeout = Number(process.env.QUESTDB_FLUSH_TIMEOUT_MS || 10000);
 
@@ -153,6 +190,7 @@ async function writeBatchWithReconnect(tasks: WriteTask[], flush: boolean): Prom
         await resetSender('transport disconnected');
         continue;
       }
+      await resetSender('write batch failed');
       throw error;
     }
   }
@@ -173,10 +211,8 @@ async function drainWriteQueue(): Promise<void> {
     }
 
     const batch = pendingWrites.splice(0, writeBatchSize);
-    const shouldFlush = Date.now() - lastFlushTime >= flushInterval;
-
     try {
-      await writeBatchWithReconnect(batch, shouldFlush);
+      await writeBatchWithReconnect(batch, true);
       batch.forEach((task) => task.resolve());
     } catch (error) {
       batch.forEach((task) => task.reject(error));
@@ -193,10 +229,11 @@ function startWriteQueueDrain(): void {
     drainPromise = null;
     if (!closing && pendingWrites.length > 0) startWriteQueueDrain();
   });
+  drainPromise.catch((error) => logger.error('QuestDB drain failed; Redis entries remain pending', error));
 }
 
 function enqueueWrite(write: (activeSender: Sender) => void): Promise<void> {
-  if (closing) return Promise.resolve();
+  if (closing) return Promise.reject(new Error('QuestDB writer is closing'));
 
   if (pendingWrites.length >= maxPendingWrites) {
     const error = new Error(`QuestDB write queue full (${pendingWrites.length}/${maxPendingWrites})`);
@@ -256,6 +293,8 @@ export const QuestDBWriter = {
   ): Promise<void> => {
     try {
       const tables = questdbMarketTables(exchange, symbol);
+      if (!tradeId || tradeId === 'undefined') throw new Error('Trade ID is required for idempotent ingestion');
+      await ensureTable(tables.tradesTable, 'trade');
       await enqueueWrite((activeSender) => {
         const shouldRegister = !registeredMarkets.has(tables.marketKey);
         if (shouldRegister) registerMarket(activeSender, exchange, symbol, tables);
@@ -264,6 +303,7 @@ export const QuestDBWriter = {
           .symbol('exchange', exchange)
           .symbol('symbol', symbol)
           .symbol('side', side)
+          .symbol('record_key', recordKey([exchange, symbol, tradeId]))
           .floatColumn('price', parseFloat(price))
           .floatColumn('quantity', parseFloat(quantity))
           .stringColumn('trade_id', tradeId)
@@ -300,6 +340,7 @@ export const QuestDBWriter = {
   ): Promise<void> => {
     try {
       const tables = questdbMarketTables(exchange, symbol);
+      await ensureTable(tables.orderbookDeltaTable, 'orderbook');
       await enqueueWrite((activeSender) => {
         const shouldRegister = !registeredMarkets.has(tables.marketKey);
         if (shouldRegister) registerMarket(activeSender, exchange, symbol, tables);
@@ -310,6 +351,7 @@ export const QuestDBWriter = {
             .symbol('symbol', symbol)
             .symbol('side', side)
             .symbol('update_type', updateType)
+            .symbol('record_key', recordKey([exchange, symbol, timestamp, updateType, side, price]))
             .floatColumn('price', price)
             .floatColumn('qty', qty)
             .floatColumn('sequence', sequence || 0)

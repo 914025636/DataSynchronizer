@@ -7,10 +7,10 @@
   "ccxtVersion": "4.5.70",
   "window": "[event - 30 minutes, event + 60 minutes)",
   "expectedRowsPerTable": 5400,
-  "eventRecords": 158,
-  "uniqueEventTimes": 95,
+  "eventRecords": 160,
+  "uniqueEventTimes": 96,
   "retainedFromPreviousRun": 34,
-  "startedAt": "2026-09-08T08:55:08.096Z",
+  "startedAt": "2026-09-12T03:43:31.620Z",
   "complete": true,
   "tables": [
     {
@@ -4905,9 +4905,52 @@
       "rows": 5400,
       "beforeRows": 1800,
       "fromEventRows": 3600
+    },
+    {
+      "eventTimeUTC": "2026-09-11T12:30:00.000Z",
+      "eventTimestampMs": 1789129800000,
+      "windowStartUTC": "2026-09-11T12:00:00.000Z",
+      "windowEndExclusiveUTC": "2026-09-11T13:30:00.000Z",
+      "file": "BTCUSDT-spot-1s-event-2026-09-11T12-30-00-000Z.csv",
+      "events": [
+        {
+          "calendarId": "Core Inflation Rate YoY@1789129800000",
+          "event": "Core Inflation Rate YoY",
+          "event_zh": "核心通胀率同比",
+          "actual": "",
+          "forecast": "",
+          "previous": "",
+          "prevInitial": "",
+          "unit": "",
+          "ccy": "",
+          "importance": "3",
+          "region": "United States",
+          "source": "BLS Consumer Price Index",
+          "note": "与通胀率同场发布"
+        },
+        {
+          "calendarId": "Inflation Rate YoY@1789129800000",
+          "event": "Inflation Rate YoY",
+          "event_zh": "通胀率同比",
+          "actual": "",
+          "forecast": "",
+          "previous": "",
+          "prevInitial": "",
+          "unit": "",
+          "ccy": "",
+          "importance": "3",
+          "region": "United States",
+          "source": "BLS Consumer Price Index",
+          "note": "与核心通胀同场发布"
+        }
+      ],
+      "status": "complete",
+      "rows": 5400,
+      "beforeRows": 1800,
+      "fromEventRows": 3600
     }
   ],
-  "finishedAt": "2026-09-08T08:57:26.282Z",
+  "finishedAt": "2026-09-12T03:43:47.590Z",
   "pendingFutureEvents": [
     {
       "eventTimeUTC": "2026-09-16T18:00:00.000Z",

@@ -1,4 +1,6 @@
 import IORedis, { RedisOptions } from 'ioredis';
+import { resolve } from 'path';
+import { MarketOutbox } from './market_outbox';
 import { logger } from '../logger';
 import { MarketStreamEvent, RedisStreamEntry, serializeMarketEvent } from './market_streams';
 
@@ -19,6 +21,7 @@ const redisConfig: RedisOptions = {
 type StreamRedis = InstanceType<typeof IORedis>;
 
 const producerClients = new Set<StreamRedis>();
+const producerOutboxes = new Set<MarketOutbox>();
 const streamCapabilityChecks = new WeakMap<StreamRedis, Promise<void>>();
 
 function parseRedisMajorVersion(info: string): number | null {
@@ -36,6 +39,10 @@ async function ensureStreamsSupported(client: StreamRedis): Promise<void> {
       if (major !== null && major < 5) {
         throw new Error(`Redis Streams require Redis 5 or newer; connected Redis version is ${major}.x`);
       }
+    });
+    check = check.catch((error) => {
+      streamCapabilityChecks.delete(client);
+      throw error;
     });
     streamCapabilityChecks.set(client, check);
   }
@@ -62,31 +69,43 @@ export function createMarketStreamRedis(name: string): StreamRedis {
 
 export class MarketStreamProducer {
   private readonly client: StreamRedis;
+  private readonly outbox?: MarketOutbox;
 
-  constructor(client?: StreamRedis) {
+  constructor(client?: StreamRedis, name = 'market') {
     this.client = client || createMarketStreamRedis('Redis market stream producer');
-    if (!client) producerClients.add(this.client);
+    if (!client) {
+      producerClients.add(this.client);
+      this.outbox = new MarketOutbox(resolve(process.env.MARKET_OUTBOX_DIRECTORY || '.market-outbox', name),
+        (stream, event) => this.send(stream, event));
+      producerOutboxes.add(this.outbox);
+    }
   }
 
   async append(stream: string, event: MarketStreamEvent): Promise<string> {
+    if (this.outbox) return this.outbox.append(stream, event);
+    return this.send(stream, event);
+  }
+
+  private async send(stream: string, event: MarketStreamEvent): Promise<string> {
     await ensureStreamsSupported(this.client);
     return this.client.xadd(
       stream,
-      'MAXLEN',
-      '~',
-      MARKET_STREAM_MAX_LENGTH,
       '*',
       ...serializeMarketEvent(event),
     );
   }
 
   async close(): Promise<void> {
+    this.outbox?.stop();
+    if (this.outbox) producerOutboxes.delete(this.outbox);
     await this.client.quit();
     producerClients.delete(this.client);
   }
 }
 
 export async function closeMarketStreamProducers(): Promise<void> {
+  producerOutboxes.forEach((outbox) => outbox.stop());
+  producerOutboxes.clear();
   const clients = Array.from(producerClients);
   producerClients.clear();
   await Promise.all(clients.map((client) => client.quit()));

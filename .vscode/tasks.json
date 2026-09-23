@@ -64,7 +64,7 @@
 				"-ExecutionPolicy",
 				"Bypass",
 				"-File",
-				"${workspaceFolder}\\start-questdb-docker.ps1"
+				"${workspaceFolder}\\start-questdb.ps1"
 			],
 			"problemMatcher": [],
 			"hide": true

@@ -15,7 +15,7 @@ const trade: TradeStreamEvent = {
 };
 
 describe('MarketStreamProducer', () => {
-  it('appends a bounded stream entry', async () => {
+  it('does not trim unacknowledged stream entries', async () => {
     const client = {
       info: jest.fn().mockResolvedValue('redis_version:7.2.0\r\n'),
       xadd: jest.fn().mockResolvedValue('1001-0'),
@@ -26,9 +26,6 @@ describe('MarketStreamProducer', () => {
     await expect(producer.append('market:trades:v1', trade)).resolves.toBe('1001-0');
     expect(client.xadd).toHaveBeenCalledWith(
       'market:trades:v1',
-      'MAXLEN',
-      '~',
-      10000000,
       '*',
       'payload',
       JSON.stringify(trade),

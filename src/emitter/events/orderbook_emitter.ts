@@ -12,7 +12,7 @@ import { TableTemplates } from '../../database/queries/enums';
 import { MarketStreamProducer } from '../../redis/market_stream_client';
 import { MARKET_STREAMS } from '../../redis/market_streams';
 
-const marketStreamProducer = new MarketStreamProducer();
+const marketStreamProducer = new MarketStreamProducer(undefined, 'orderbook');
 let lastStreamErrorAt = 0;
 let suppressedStreamErrors = 0;
 
@@ -140,10 +140,10 @@ class OrderbookEmitter {
 
     Emitter.on(
       EMITTER_EVENTS.OrderBookPersist,
-      (exchange: string, depth: PersistedOrderBookDepth): void => {
+      (exchange: string, depth: PersistedOrderBookDepth, acknowledge?: (error?: unknown) => void): void => {
         TradepairQueries.idToSymbol(exchange.toLowerCase(), depth.symbol)
           .then((ccxtSymbol) => {
-            if (!ccxtSymbol) return;
+            if (!ccxtSymbol) throw new Error('Orderbook symbol lookup failed');
             return marketStreamProducer.append(MARKET_STREAMS.orderbook, {
               schemaVersion: 3,
               eventType: 'orderbook',
@@ -158,7 +158,11 @@ class OrderbookEmitter {
               sourceUpdateCount: depth.sourceUpdateCount,
             });
           })
-          .catch((error) => logStreamError(error));
+          .then(() => acknowledge?.())
+          .catch((error) => {
+            logStreamError(error);
+            acknowledge?.(error);
+          });
       },
     );
 

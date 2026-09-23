@@ -156,4 +156,6 @@
 "2026-08-12T12:30:00.000Z","1786537800000","2026-08-12 20:30:00","Inflation Rate YoY","通胀率同比","United States","3","BLS Consumer Price Index","与核心通胀同场发布"
 "2026-09-04T12:30:00.000Z","1788525000000","2026-09-04 20:30:00","Non Farm Payrolls","非农就业人数","United States","3","BLS Employment Situation","与失业率同场发布"
 "2026-09-04T12:30:00.000Z","1788525000000","2026-09-04 20:30:00","Unemployment Rate","失业率","United States","3","BLS Employment Situation","与非农同场发布"
+"2026-09-11T12:30:00.000Z","1789129800000","2026-09-11 20:30:00","Core Inflation Rate YoY","核心通胀率同比","United States","3","BLS Consumer Price Index","与通胀率同场发布"
+"2026-09-11T12:30:00.000Z","1789129800000","2026-09-11 20:30:00","Inflation Rate YoY","通胀率同比","United States","3","BLS Consumer Price Index","与核心通胀同场发布"
 "2026-09-16T18:00:00.000Z","1789581600000","2026-09-17 02:00:00","Fed Interest Rate Decision","美联储利率决议","United States","3","Federal Reserve FOMC calendar","声明于美东 14:00 发布"

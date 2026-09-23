@@ -5,7 +5,7 @@ import { TradepairQueries } from '../../tradepairs/tradepairs';
 import { MarketStreamProducer } from '../../redis/market_stream_client';
 import { MARKET_STREAMS } from '../../redis/market_streams';
 
-const marketStreamProducer = new MarketStreamProducer();
+const marketStreamProducer = new MarketStreamProducer(undefined, 'trades');
 let lastStreamErrorAt = 0;
 let suppressedStreamErrors = 0;
 
@@ -27,10 +27,10 @@ class TradesEmitter {
     logger.verbose('Trade Emitter started!');
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    Emitter.on('Trades', (exchange: string, trade: any) => {
+    Emitter.on('Trades', (exchange: string, trade: any, acknowledge?: (error?: unknown) => void) => {
       TradepairQueries.idToSymbol(exchange, trade.symbol)
         .then((ccxtSymbol) => {
-          if (!ccxtSymbol) return;
+          if (!ccxtSymbol) throw new Error('Trade symbol lookup failed');
 
           return marketStreamProducer.append(MARKET_STREAMS.trades, {
             schemaVersion: 1,
@@ -45,7 +45,11 @@ class TradesEmitter {
             tradeId: String(trade.tradeId),
           });
         })
-        .catch((err: unknown) => logStreamError(err));
+        .then(() => acknowledge?.())
+        .catch((err: unknown) => {
+          logStreamError(err);
+          acknowledge?.(err);
+        });
     });
   }
 }

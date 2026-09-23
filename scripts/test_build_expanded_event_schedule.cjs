@@ -37,4 +37,6 @@ test('Known releases resolve to the timestamps already verified against OKX data
   assert.ok(find('2026-08-12T12:30:00.000Z', 'Inflation Rate YoY'));
   assert.ok(find('2026-07-29T18:00:00.000Z', 'Fed Interest Rate Decision'));
   assert.ok(find('2026-07-15T12:30:00.000Z', 'PPI MoM'));
+  assert.ok(find('2026-09-10T12:30:00.000Z', 'PPI MoM'));
+  assert.ok(find('2026-09-11T12:30:00.000Z', 'Core Inflation Rate YoY'));
 });

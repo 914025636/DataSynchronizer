@@ -4,6 +4,7 @@ import { EMITTER_EVENTS } from '../../constants';
 import { Emitter } from '../../emitter/emitter';
 import { logger } from '../../logger';
 import { configureCcxtTransport, getCcxtProxy } from '../ccxt_proxy';
+import { recoverBinanceTrades, TradeCheckpoint } from '../trade_recovery';
 import {
   calculateIndexedOrderbookDelta,
   indexOrderbook,
@@ -150,6 +151,7 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
         }
       : {};
   const client = new ExchangeClass({
+    ...(exchangeName === 'binance' && process.env.BINANCE_API_KEY ? { apiKey: process.env.BINANCE_API_KEY } : {}),
     enableRateLimit: true,
     newUpdates: true,
     ...(httpsProxy ? { httpsProxy } : {}),
@@ -175,34 +177,44 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
   const lastSequences = new Map<string, number | undefined>();
   const lastSnapshotTimes = new Map<string, number>();
 
-  const persistOrderbooks = (): void => {
+  let persisting = false;
+  const persistOrderbooks = async (): Promise<void> => {
+    if (persisting) return;
+    persisting = true;
+    try {
     const timestamp = Math.floor(Date.now() / orderbookPersistInterval) * orderbookPersistInterval;
 
-    latestOrderbooks.forEach((latest, symbol) => {
+    for (const [symbol, latest] of latestOrderbooks) {
+      const updateCount = sourceUpdateCounts.get(symbol) || 0;
       const previous = persistedOrderbooks.get(symbol);
       const lastSnapshot = lastSnapshotTimes.get(symbol) || 0;
       const snapshotDue = !previous || timestamp - lastSnapshot >= orderbookSnapshotInterval;
       const payload = snapshotDue ? latest : calculateIndexedOrderbookDelta(previous, latest).delta;
 
       if (snapshotDue || payload.asks.length > 0 || payload.bids.length > 0) {
-        Emitter.emit(EMITTER_EVENTS.OrderBookPersist, exchangeName, {
+        await new Promise<void>((resolve, reject) => Emitter.emit(EMITTER_EVENTS.OrderBookPersist, exchangeName, {
           symbol,
           asks: payload.asks,
           bids: payload.bids,
           timestamp,
           sequence: lastSequences.get(symbol),
           updateType: snapshotDue ? 'snapshot' : 'delta',
-          sourceUpdateCount: sourceUpdateCounts.get(symbol) || 0,
-        });
+          sourceUpdateCount: updateCount,
+        }, (error?: unknown) => error ? reject(error) : resolve()));
       }
 
       persistedOrderbooks.set(symbol, indexOrderbook(latest));
-      sourceUpdateCounts.set(symbol, 0);
+      sourceUpdateCounts.set(symbol, Math.max(0, (sourceUpdateCounts.get(symbol) || 0) - updateCount));
       if (snapshotDue) lastSnapshotTimes.set(symbol, timestamp);
-    });
+    }
+    } finally {
+      persisting = false;
+    }
   };
 
-  const persistenceTimer = setInterval(persistOrderbooks, orderbookPersistInterval);
+  const persistenceTimer = setInterval(() => {
+    persistOrderbooks().catch((error) => logger.error('Orderbook persistence failed; baseline retained', error));
+  }, orderbookPersistInterval);
   persistenceTimer.unref();
   const idleWatcher = setInterval(() => {
     const idleTime = Date.now() - lastActivity;
@@ -223,10 +235,14 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
   const watchTrades = async (symbol: string): Promise<void> => {
     let retryAttempt = 0;
     let reconnecting = false;
+    const checkpoint = exchangeName === 'binance' ? new TradeCheckpoint(exchangeName, symbol) : undefined;
+    let lastTrade = checkpoint?.load();
+    let pendingTrades: ccxt.Trade[] = [];
 
     while (!closed) {
       try {
-        const trades = await client.watchTrades(symbol);
+        if (!pendingTrades.length) pendingTrades = await client.watchTrades(symbol);
+        const trades = pendingTrades;
         retryAttempt = 0;
         lastActivity = Date.now();
         if (reconnecting) {
@@ -238,16 +254,27 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
           logger.info(`${exchangeName} received first trade update for ${symbol}`);
         }
 
-        trades.forEach((trade) => {
-          Emitter.emit('Trades', exchangeName, {
+        const persistTrade = async (trade: ccxt.Trade): Promise<void> => {
+          await new Promise<void>((resolve, reject) => Emitter.emit('Trades', exchangeName, {
             time: trade.timestamp || Date.now(),
             symbol: trade.symbol,
             side: trade.side,
             quantity: trade.amount,
             price: trade.price,
             tradeId: trade.id,
-          });
-        });
+          }, (error?: unknown) => error ? reject(error) : resolve()));
+          checkpoint?.save(trade);
+          lastTrade = trade;
+        };
+        for (const trade of trades) {
+          if (exchangeName === 'binance' && lastTrade) {
+            if (Number(trade.id) <= Number(lastTrade.id)) continue;
+            const recovered = await recoverBinanceTrades(client, symbol, lastTrade, trade);
+            for (const missed of recovered) await persistTrade(missed);
+          }
+          await persistTrade(trade);
+        }
+        pendingTrades = [];
       } catch (err) {
         if (!closed) {
           reconnecting = true;

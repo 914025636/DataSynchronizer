@@ -245,4 +245,7 @@
 "2026-08-13T12:30:00.000Z","1786624200000","2026-08-13 20:30:00","PPI MoM","生产者价格指数环比","United States","3","BLS Producer Price Index",""
 "2026-09-04T12:30:00.000Z","1788525000000","2026-09-04 20:30:00","Non Farm Payrolls","非农就业人数","United States","3","BLS Employment Situation",""
 "2026-09-04T12:30:00.000Z","1788525000000","2026-09-04 20:30:00","Unemployment Rate","失业率","United States","3","BLS Employment Situation",""
+"2026-09-10T12:30:00.000Z","1789043400000","2026-09-10 20:30:00","PPI MoM","生产者价格指数环比","United States","3","BLS Producer Price Index",""
+"2026-09-11T12:30:00.000Z","1789129800000","2026-09-11 20:30:00","Core Inflation Rate YoY","核心通胀率同比","United States","3","BLS Consumer Price Index",""
+"2026-09-11T12:30:00.000Z","1789129800000","2026-09-11 20:30:00","Inflation Rate YoY","通胀率同比","United States","3","BLS Consumer Price Index",""
 "2026-09-16T18:00:00.000Z","1789581600000","2026-09-17 02:00:00","Fed Interest Rate Decision","美联储利率决议","United States","3","Federal Reserve FOMC calendar",""

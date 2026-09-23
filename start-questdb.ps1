@@ -1,6 +1,6 @@
 param(
     [string]$InstallDir = 'D:\Program Files\questdb-9.4.3-rt-windows-x86-64',
-    [string]$DataDir = 'D:\Git\DataSynchronizer\qdbroot',
+    [string]$DataDir = (Join-Path $PSScriptRoot 'qdbroot'),
     [switch]$Restart,
     [int]$MaxWaitSeconds = 30
 )
@@ -21,7 +21,7 @@ New-Item -ItemType Directory -Path $dataConfigDir -Force | Out-Null
 
 # Keep runtime config deterministic: always use the repo's tuned server.conf.
 if (Test-Path $repoConfig) {
-    if ((Resolve-Path $repoConfig).Path -ne (Resolve-Path $dataConfig).Path) {
+    if ([IO.Path]::GetFullPath($repoConfig) -ne [IO.Path]::GetFullPath($dataConfig)) {
         Copy-Item -Path $repoConfig -Destination $dataConfig -Force
         Write-Host "Synced config: $repoConfig -> $dataConfig"
     } else {

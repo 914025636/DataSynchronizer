@@ -1,8 +1,8 @@
 {
   "dataset": "binance-paxgusdt-spot-1s-us-important-events-2026-09-09",
   "minActiveRatio": 0.05,
-  "usableWindows": 106,
-  "allWindows": 159,
+  "usableWindows": 108,
+  "allWindows": 161,
   "config": {
     "volumeMultiple": 5,
     "sigmaMultiple": 3,
@@ -257,62 +257,62 @@
     },
     {
       "family": "核心通胀率同比",
-      "windows": 29,
-      "triggered": 27,
-      "triggerRate": 93.1,
-      "trades": 27,
-      "winRate": 55.6,
-      "average": 0.075,
+      "windows": 30,
+      "triggered": 28,
+      "triggerRate": 93.3,
+      "trades": 28,
+      "winRate": 53.6,
+      "average": 0.069,
       "median": 0.046,
-      "total": 2.03,
-      "profitFactor": 1.88,
+      "total": 1.93,
+      "profitFactor": 1.8,
       "best": 1,
       "worst": -0.76,
-      "net010": -0.67,
+      "net010": -0.87,
       "confidence": {
-        "low": -0.064,
-        "high": 0.19,
-        "positiveShare": 85.2
+        "low": -0.056,
+        "high": 0.18,
+        "positiveShare": 84.9
       },
       "concentration": {
-        "topTradeShare": 49.4,
-        "top3Share": 104.3,
-        "totalExclTop": 1.03,
-        "averageExclTop": 0.039
+        "topTradeShare": 52,
+        "top3Share": 109.7,
+        "totalExclTop": 0.93,
+        "averageExclTop": 0.034
       },
       "shock": {
         "medianRange": 0.113,
         "medianSurge": 54.4,
         "medianEntrySecond": 2,
-        "earlyShare": 59.3,
-        "longShare": 85.2
+        "earlyShare": 60.7,
+        "longShare": 85.7
       },
       "persistence": {
-        "same60s": 59.3,
-        "same300s": 55.6,
-        "same900s": 63,
-        "same3000s": 55.6
+        "same60s": 57.1,
+        "same300s": 53.6,
+        "same900s": 64.3,
+        "same3000s": 57.1
       },
       "baselineVolatility": {
         "medianSigma": 0.0069,
-        "medianActiveRatio": 0.128
+        "medianActiveRatio": 0.132
       },
       "exit": {
-        "trails": 25,
+        "trails": 26,
         "timeouts": 2,
         "medianHoldSeconds": 73
       },
       "byEntryTiming": {
         "early": {
-          "trades": 16,
-          "winRate": 62.5,
-          "average": 0.192,
-          "median": 0.112,
-          "total": 3.07,
-          "profitFactor": 7.59,
+          "trades": 17,
+          "winRate": 58.8,
+          "average": 0.175,
+          "median": 0.091,
+          "total": 2.97,
+          "profitFactor": 6.25,
           "best": 1,
           "worst": -0.13,
-          "net010": 1.47
+          "net010": 1.27
         },
         "late": {
           "trades": 11,
@@ -365,64 +365,64 @@
         },
         {
           "year": "2026",
-          "trades": 8,
-          "winRate": 62.5,
-          "average": 0.243,
-          "median": 0.112,
-          "total": 1.94,
-          "profitFactor": 10.06,
+          "trades": 9,
+          "winRate": 55.6,
+          "average": 0.205,
+          "median": 0.091,
+          "total": 1.84,
+          "profitFactor": 6.86,
           "best": 1,
-          "worst": -0.09,
-          "net010": 1.14
+          "worst": -0.1,
+          "net010": 0.94
         }
       ]
     },
     {
       "family": "生产者价格指数环比",
-      "windows": 26,
-      "triggered": 14,
-      "triggerRate": 53.8,
-      "trades": 14,
-      "winRate": 35.7,
-      "average": -0.002,
-      "median": -0.025,
-      "total": -0.03,
-      "profitFactor": 0.97,
+      "windows": 27,
+      "triggered": 15,
+      "triggerRate": 55.6,
+      "trades": 15,
+      "winRate": 33.3,
+      "average": -0.016,
+      "median": -0.039,
+      "total": -0.25,
+      "profitFactor": 0.78,
       "best": 0.43,
       "worst": -0.21,
-      "net010": -1.43,
+      "net010": -1.75,
       "confidence": {
-        "low": -0.079,
-        "high": 0.086,
-        "positiveShare": 44.8
+        "low": -0.094,
+        "high": 0.072,
+        "positiveShare": 35
       },
       "concentration": {
-        "topTradeShare": -1379.2,
-        "top3Share": -2290.5,
-        "totalExclTop": -0.46,
-        "averageExclTop": -0.035
+        "topTradeShare": -174.3,
+        "top3Share": -289.5,
+        "totalExclTop": -0.67,
+        "averageExclTop": -0.048
       },
       "shock": {
         "medianRange": 0.093,
-        "medianSurge": 105.2,
+        "medianSurge": 31.3,
         "medianEntrySecond": 1,
-        "earlyShare": 78.6,
-        "longShare": 71.4
+        "earlyShare": 73.3,
+        "longShare": 73.3
       },
       "persistence": {
-        "same60s": 71.4,
-        "same300s": 50,
-        "same900s": 42.9,
-        "same3000s": 35.7
+        "same60s": 66.7,
+        "same300s": 46.7,
+        "same900s": 40,
+        "same3000s": 33.3
       },
       "baselineVolatility": {
-        "medianSigma": 0.0078,
+        "medianSigma": 0.0077,
         "medianActiveRatio": 0.118
       },
       "exit": {
-        "trails": 14,
+        "trails": 15,
         "timeouts": 0,
-        "medianHoldSeconds": 143
+        "medianHoldSeconds": 142
       },
       "byEntryTiming": {
         "early": {
@@ -437,15 +437,15 @@
           "net010": -0.86
         },
         "late": {
-          "trades": 3,
-          "winRate": 33.3,
-          "average": -0.092,
+          "trades": 4,
+          "winRate": 25,
+          "average": -0.122,
           "median": -0.169,
-          "total": -0.27,
-          "profitFactor": 0.22,
+          "total": -0.49,
+          "profitFactor": 0.14,
           "best": 0.08,
-          "worst": -0.18,
-          "net010": -0.57
+          "worst": -0.21,
+          "net010": -0.89
         }
       },
       "byYear": [
@@ -487,15 +487,15 @@
         },
         {
           "year": "2026",
-          "trades": 5,
-          "winRate": 20,
-          "average": -0.033,
+          "trades": 6,
+          "winRate": 16.7,
+          "average": -0.063,
           "median": -0.11,
-          "total": -0.16,
-          "profitFactor": 0.72,
+          "total": -0.38,
+          "profitFactor": 0.53,
           "best": 0.43,
           "worst": -0.21,
-          "net010": -0.66
+          "net010": -0.98
         }
       ]
     }
@@ -525,24 +525,24 @@
     },
     {
       "family": "核心通胀率同比",
-      "trades": 27,
-      "average": 0.075,
-      "net010": -0.67,
-      "ciLow": -0.064,
-      "ciHigh": 0.19,
-      "positiveShare": 85.2,
-      "averageExclTop": 0.039,
+      "trades": 28,
+      "average": 0.069,
+      "net010": -0.87,
+      "ciLow": -0.056,
+      "ciHigh": 0.18,
+      "positiveShare": 84.9,
+      "averageExclTop": 0.034,
       "verdict": "drop"
     },
     {
       "family": "生产者价格指数环比",
-      "trades": 14,
-      "average": -0.002,
-      "net010": -1.43,
-      "ciLow": -0.079,
-      "ciHigh": 0.086,
-      "positiveShare": 44.8,
-      "averageExclTop": -0.035,
+      "trades": 15,
+      "average": -0.016,
+      "net010": -1.75,
+      "ciLow": -0.094,
+      "ciHigh": 0.072,
+      "positiveShare": 35,
+      "averageExclTop": -0.048,
       "verdict": "drop"
     }
   ]

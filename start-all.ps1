@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$QuestDBInstallDir = 'D:\Program Files\questdb-9.4.3-rt-windows-x86-64',
+    [string]$QuestDBDataDir = (Join-Path $PSScriptRoot 'qdbroot')
+)
 
 $ErrorActionPreference = 'Stop'
 $projectDirectory = $PSScriptRoot
@@ -65,7 +68,7 @@ try {
 
     Push-Location $projectDirectory
     try {
-        & "$projectDirectory\start-questdb-docker.ps1"
+        & "$projectDirectory\start-questdb.ps1" -InstallDir $QuestDBInstallDir -DataDir $QuestDBDataDir
 
         if (-not (Test-Path "$projectDirectory\node_modules")) {
             & npm.cmd install
