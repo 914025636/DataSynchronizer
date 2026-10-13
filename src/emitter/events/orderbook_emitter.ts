@@ -30,8 +30,10 @@ function logStreamError(error: unknown): void {
 
 const memoryLimit =
   process.env.ORDERBOOK_SIZE_LIMIT === undefined ? 1024 : parseInt(process.env.ORDERBOOK_SIZE_LIMIT, 10);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const OrderBookExchangeCache: Map<string, OrderBookStore> = new Map();
+// Only delta-only feeds need incremental rebuilding; full-book updates replace state directly.
+const deltaOrderbookStores: Map<string, OrderBookStore> = new Map();
+const latestOrderbooks: Map<string, Map<string, OrderbookData>> = new Map();
+const lastBestPrices: Map<string, string> = new Map();
 
 interface OrderBookDepth {
   symbol: string;
@@ -39,7 +41,30 @@ interface OrderBookDepth {
   bids: Order[];
   timestamp?: number;
   sequence?: number;
-  updateType: 'snapshot' | 'delta';
+  updateType?: 'snapshot' | 'delta';
+}
+
+const limitLevels = (levels: Order[]): Order[] =>
+  memoryLimit > 0 && levels.length > memoryLimit ? levels.slice(0, memoryLimit) : levels;
+
+async function applyOrderbookDelta(exchange: string, depth: OrderBookDepth): Promise<OrderbookData | undefined> {
+  let store = deltaOrderbookStores.get(exchange);
+  if (!store) {
+    store = new OrderBookStore(memoryLimit);
+    deltaOrderbookStores.set(exchange, store);
+  }
+
+  if (!store.hasOrderBook(depth.symbol)) {
+    const orderbookSnapshot = await Redis.get(Utils.orderbookName(exchange, depth.symbol));
+    if (orderbookSnapshot !== null) {
+      const parsedOrderbookSnapshot: OrderbookData = JSON.parse(orderbookSnapshot);
+      if (parsedOrderbookSnapshot.asks && parsedOrderbookSnapshot.bids) {
+        store.updateOrderBook(depth.symbol, parsedOrderbookSnapshot.asks, parsedOrderbookSnapshot.bids);
+      }
+    }
+  }
+  store.updateOrderBook(depth.symbol, depth.asks, depth.bids);
+  return store.getOrderBook(depth.symbol);
 }
 
 interface PersistedOrderBookDepth {
@@ -62,79 +87,33 @@ class OrderbookEmitter {
       async (exchange: string, depth: OrderBookDepth): Promise<void> => {
         // eslint-disable-next-line no-param-reassign
         exchange = exchange.toLowerCase();
+        const { symbol } = depth;
 
-        let exchangeOrderbooks = OrderBookExchangeCache.get(exchange);
+        try {
+          const orderbook =
+            depth.updateType === 'snapshot'
+              ? { asks: limitLevels(depth.asks), bids: limitLevels(depth.bids) }
+              : await applyOrderbookDelta(exchange, depth);
+          if (!orderbook) return;
 
-        if (!exchangeOrderbooks) {
-          exchangeOrderbooks = new OrderBookStore(memoryLimit);
-          OrderBookExchangeCache.set(exchange, exchangeOrderbooks);
-        }
-
-        const { symbol, asks, bids } = depth;
-
-        if (exchangeOrderbooks.hasOrderBook(symbol)) {
-          try {
-            exchangeOrderbooks.updateOrderBook(symbol, asks, bids);
-
-            const orderBookData = exchangeOrderbooks.getOrderBook(symbol);
-
-            if (orderBookData && orderBookData.asks[0]?.[0] && orderBookData.bids[0]?.[0]) {
-              // Publish best Ask and Bid price
-              await RedisPub.publish(
-                'OrderBookUpdate',
-                JSON.stringify({ exchange, symbol, ask: orderBookData.asks[0]?.[0], bid: orderBookData.bids[0]?.[0] }),
-              );
-            }
-          } catch (e) {
-            logger.error('Orderbook update error', e);
+          let exchangeOrderbooks = latestOrderbooks.get(exchange);
+          if (!exchangeOrderbooks) {
+            exchangeOrderbooks = new Map();
+            latestOrderbooks.set(exchange, exchangeOrderbooks);
           }
-        } else {
-          // Load Orderbook from Redis
-          try {
-            const tableName = Utils.orderbookName(exchange, symbol);
-            const orderbookSnapshot = await Redis.get(tableName);
+          exchangeOrderbooks.set(symbol, orderbook);
 
-            if (orderbookSnapshot !== null) {
-              const parsedOrderbookSnapshot: OrderbookData = JSON.parse(orderbookSnapshot);
-
-              if (parsedOrderbookSnapshot.asks && parsedOrderbookSnapshot.bids) {
-                exchangeOrderbooks.updateOrderBook(symbol, parsedOrderbookSnapshot.asks, parsedOrderbookSnapshot.bids);
-              }
-            }
-            exchangeOrderbooks.updateOrderBook(symbol, asks, bids);
-          } catch (e) {
-            logger.error('Orderbook loading error', e);
+          const ask = orderbook.asks[0]?.[0];
+          const bid = orderbook.bids[0]?.[0];
+          const bestKey = `${exchange}\0${symbol}`;
+          const best = `${ask}|${bid}`;
+          if (ask && bid && lastBestPrices.get(bestKey) !== best) {
+            lastBestPrices.set(bestKey, best);
+            await RedisPub.publish('OrderBookUpdate', JSON.stringify({ exchange, symbol, ask, bid }));
           }
+        } catch (e) {
+          logger.error('Orderbook update error', e);
         }
-
-        // const exchanges = Object.keys(OrderBookExchangeCache);
-
-        // for (const exchange of exchanges) {
-        //   const symbols = OrderBookExchangeCache[exchange].getSymbolList();
-
-        //   for (const symbol of symbols) {
-        //     try {
-        //       const orderbook: OrderbookData = { ...OrderBookExchangeCache[exchange].getOrderBook(symbol) };
-        //       // Get CCXT standard symbol
-        //       const ccxtSymbol = await TradepairQueries.idToSymbol(exchange, symbol);
-
-        //       if (ccxtSymbol) {
-        //         const tableName = Utils.orderbookName_frame(exchange, ccxtSymbol);
-
-        //         if (!(await DBQueries.tableCheck(tableName))) {
-        //           await DBQueries.createNewTableFromTemplate(TableTemplates.Orderbook, tableName);
-        //         }
-        //         if (orderbookStr != JSON.stringify(orderbook)) {
-        //           orderbookStr = JSON.stringify(orderbook)
-        //           await DBQueries.orderbookReplace(tableName, { time: Date.now(), orderbook });
-        //         }
-
-        //       }
-        //     } catch (e) {
-        //       logger.error('Orderbook snapshot error', e);
-        //     }
-        //   }
-        // }
       },
     );
 
@@ -169,17 +148,9 @@ class OrderbookEmitter {
     Emitter.on(
       EMITTER_EVENTS.OrderBookSnapshot,
       async (snapshotTime: number): Promise<void> => {
-        for (const [exchange, exchangeOrderbooks] of OrderBookExchangeCache) {
-          const symbols = exchangeOrderbooks.getSymbolList();
-
-          for (const symbol of symbols) {
+        for (const [exchange, exchangeOrderbooks] of latestOrderbooks) {
+          for (const [symbol, orderbook] of exchangeOrderbooks) {
             try {
-              const orderbook = exchangeOrderbooks.getOrderBook(symbol);
-
-              if (!orderbook) {
-                continue;
-              }
-
               // Get CCXT standard symbol
               const ccxtSymbol = await TradepairQueries.idToSymbol(exchange, symbol);
 

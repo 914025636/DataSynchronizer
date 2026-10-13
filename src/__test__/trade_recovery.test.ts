@@ -5,13 +5,13 @@ import { recoverBinanceTrades, TradeCheckpoint } from '../exchange/trade_recover
 
 const trade = (id: number) => ({ id: String(id), timestamp: id, symbol: 'BTC/USDT' } as never);
 
-it('restores the latest checkpoint after restart and isolates markets', () => {
+it('restores the latest checkpoint after restart and isolates markets', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'trade-checkpoint-'));
   try {
     const checkpoint = new TradeCheckpoint('binance', 'BTC/USDT', directory);
     expect(checkpoint.load()).toBeUndefined();
-    checkpoint.save(trade(10));
-    checkpoint.save(trade(11));
+    await checkpoint.save(trade(10));
+    await checkpoint.save(trade(11));
     expect(new TradeCheckpoint('binance', 'BTC/USDT', directory).load()).toEqual(trade(11));
     expect(new TradeCheckpoint('binance', 'BTC/USDT:USDT', directory).load()).toBeUndefined();
   } finally {

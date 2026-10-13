@@ -21,24 +21,29 @@ expects the local HTTP endpoint without authentication.
 
 ## Delivery and replay
 
-Every producer message is written and fsynced to .market-outbox before the
-producer advances its checkpoint. Redis delivery retries from this directory,
-including after process restart. Keep this directory on persistent local storage,
+Producer messages are group-committed to .market-outbox: messages arriving within
+MARKET_OUTBOX_BATCH_MS (default 20) or up to MARKET_OUTBOX_BATCH_SIZE (default
+1000) share one fsynced batch file, and a message is acknowledged only after its
+batch is durable. Binance checkpoints advance once per accepted trade batch.
+Redis delivery pipelines each batch file and retries from this directory,
+including after process restart. Incomplete .tmp files are renamed to .corrupt. Keep this directory on persistent local storage,
 do not delete it while messages are pending, and run only one producer against it.
 A disk write failure prevents advancing the affected checkpoint.
 
 Redis stream insertion no longer uses MAXLEN, because trimming may delete
-unconsumed messages. Monitor Redis memory, disk and the outbox. Enable Redis
-persistence appropriate to the required durability (for example AOF); deleting a
-local message after Redis accepts it relies on Redis retaining acknowledged data.
-Schedule retention only below the safe acknowledgement boundary of every group.
-The existing MAX_LENGTH option still bounds dead-letter streams.
+unconsumed messages. Instead, each stream worker periodically runs
+XTRIM MINID ~ below the oldest unacknowledged entry of every consumer group
+(requires Redis 6.2+; older servers log a warning and are not trimmed). Monitor
+Redis memory, disk and the outbox. Enable Redis persistence appropriate to the
+required durability (for example AOF). The existing MAX_LENGTH option still
+bounds dead-letter streams.
 
 QuestDB flushes every write batch before resolving its tasks. The consumer ACKs
-only after the complete batch succeeds. Tables gain a record_key column and WAL
-deduplication on (ts, record_key). Replaying a trade or orderbook price level uses
-the same key. Historical rows with no record_key are not backfilled or cleaned;
-this is not a historical duplicate-removal migration.
+only after the complete batch succeeds. WAL deduplication uses existing columns:
+trades on (ts, exchange, symbol, trade_id) and orderbook rows on
+(ts, exchange, symbol, update_type, side, price). Startup replaces the legacy
+(ts, record_key) keys on existing tables; the record_key column is no longer
+written and may be dropped manually. Existing duplicates are not cleaned.
 
 ## Binance raw trade recovery
 

@@ -1,6 +1,6 @@
 import IORedis, { RedisOptions } from 'ioredis';
 import { resolve } from 'path';
-import { MarketOutbox } from './market_outbox';
+import { MarketOutbox, OutboxMessage } from './market_outbox';
 import { logger } from '../logger';
 import { MarketStreamEvent, RedisStreamEntry, serializeMarketEvent } from './market_streams';
 
@@ -22,31 +22,37 @@ type StreamRedis = InstanceType<typeof IORedis>;
 
 const producerClients = new Set<StreamRedis>();
 const producerOutboxes = new Set<MarketOutbox>();
-const streamCapabilityChecks = new WeakMap<StreamRedis, Promise<void>>();
+const redisVersions = new WeakMap<StreamRedis, Promise<number[] | null>>();
+let warnedTrimUnsupported = false;
 
-function parseRedisMajorVersion(info: string): number | null {
+function parseRedisVersion(info: string): number[] | null {
   const match = info.match(/(?:^|\r?\n)redis_version:([^\r\n]+)/);
   if (!match) return null;
-  const major = Number(match[1].split('.')[0]);
-  return Number.isFinite(major) ? major : null;
+  const parts = match[1].split('.').map(Number);
+  return Number.isFinite(parts[0]) ? parts : null;
+}
+
+function redisVersion(client: StreamRedis): Promise<number[] | null> {
+  let version = redisVersions.get(client);
+  if (!version) {
+    version = client.info('server').then(parseRedisVersion);
+    version.catch(() => redisVersions.delete(client));
+    redisVersions.set(client, version);
+  }
+  return version;
 }
 
 async function ensureStreamsSupported(client: StreamRedis): Promise<void> {
-  let check = streamCapabilityChecks.get(client);
-  if (!check) {
-    check = client.info('server').then((info: string) => {
-      const major = parseRedisMajorVersion(info);
-      if (major !== null && major < 5) {
-        throw new Error(`Redis Streams require Redis 5 or newer; connected Redis version is ${major}.x`);
-      }
-    });
-    check = check.catch((error) => {
-      streamCapabilityChecks.delete(client);
-      throw error;
-    });
-    streamCapabilityChecks.set(client, check);
+  const version = await redisVersion(client);
+  if (version && version[0] < 5) {
+    throw new Error(`Redis Streams require Redis 5 or newer; connected Redis version is ${version[0]}.x`);
   }
-  return check;
+}
+
+function compareStreamIds(left: string, right: string): number {
+  const [leftMs, leftSeq] = left.split('-').map(Number);
+  const [rightMs, rightSeq] = right.split('-').map(Number);
+  return leftMs - rightMs || (leftSeq || 0) - (rightSeq || 0);
 }
 
 export function createMarketStreamRedis(name: string): StreamRedis {
@@ -76,36 +82,40 @@ export class MarketStreamProducer {
     if (!client) {
       producerClients.add(this.client);
       this.outbox = new MarketOutbox(resolve(process.env.MARKET_OUTBOX_DIRECTORY || '.market-outbox', name),
-        (stream, event) => this.send(stream, event));
+        (messages) => this.sendBatch(messages));
       producerOutboxes.add(this.outbox);
     }
   }
 
   async append(stream: string, event: MarketStreamEvent): Promise<string> {
     if (this.outbox) return this.outbox.append(stream, event);
-    return this.send(stream, event);
+    await ensureStreamsSupported(this.client);
+    return this.client.xadd(stream, '*', ...serializeMarketEvent(event));
   }
 
-  private async send(stream: string, event: MarketStreamEvent): Promise<string> {
+  private async sendBatch(messages: OutboxMessage[]): Promise<void> {
     await ensureStreamsSupported(this.client);
-    return this.client.xadd(
-      stream,
-      '*',
-      ...serializeMarketEvent(event),
-    );
+    const pipeline = this.client.pipeline();
+    messages.forEach(({ stream, event }) => pipeline.xadd(stream, '*', ...serializeMarketEvent(event)));
+    const results = await pipeline.exec();
+    const failure = results.find(([error]) => error);
+    if (failure) throw failure[0];
   }
 
   async close(): Promise<void> {
-    this.outbox?.stop();
-    if (this.outbox) producerOutboxes.delete(this.outbox);
+    if (this.outbox) {
+      producerOutboxes.delete(this.outbox);
+      await this.outbox.close();
+    }
     await this.client.quit();
     producerClients.delete(this.client);
   }
 }
 
 export async function closeMarketStreamProducers(): Promise<void> {
-  producerOutboxes.forEach((outbox) => outbox.stop());
+  const outboxes = Array.from(producerOutboxes);
   producerOutboxes.clear();
+  await Promise.all(outboxes.map((outbox) => outbox.close()));
   const clients = Array.from(producerClients);
   producerClients.clear();
   await Promise.all(clients.map((client) => client.quit()));
@@ -236,6 +246,36 @@ export class MarketStreamConsumer {
       if (Array.isArray(undelivered) && Array.isArray(undelivered[0])) oldestUndeliveredId = String(undelivered[0][0]);
     }
     return { pending, lag, oldestPendingId, oldestUndeliveredId };
+  }
+
+  // Trims only entries that every consumer group has acknowledged.
+  async trimAcknowledged(stream: string): Promise<number> {
+    const version = await redisVersion(this.client);
+    if (!version || version[0] < 6 || (version[0] === 6 && (version[1] || 0) < 2)) {
+      if (!warnedTrimUnsupported) {
+        warnedTrimUnsupported = true;
+        logger.warn(`Redis ${version ? version.join('.') : 'unknown'} lacks XTRIM MINID (6.2+); acknowledged stream entries are not trimmed`);
+      }
+      return 0;
+    }
+
+    const groups = (await this.client.xinfo('GROUPS', stream)) as unknown[];
+    let boundary: string | undefined;
+    for (const item of groups) {
+      if (!Array.isArray(item)) continue;
+      const fields = new Map<string, unknown>();
+      for (let index = 0; index + 1 < item.length; index += 2) fields.set(String(item[index]), item[index + 1]);
+      let groupBoundary = String(fields.get('last-delivered-id') || '0-0');
+      if (Number(fields.get('pending')) > 0) {
+        const summary = (await this.client.xpending(stream, String(fields.get('name')))) as unknown[];
+        if (Array.isArray(summary) && summary[1]) groupBoundary = String(summary[1]);
+      }
+      if (!boundary || compareStreamIds(groupBoundary, boundary) < 0) boundary = groupBoundary;
+    }
+    if (!boundary || boundary === '0-0') return 0;
+
+    const xtrim = this.client.xtrim.bind(this.client) as (key: string, ...args: string[]) => Promise<number>;
+    return xtrim(stream, 'MINID', '~', boundary);
   }
 
   async close(): Promise<void> {

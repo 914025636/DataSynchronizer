@@ -1,5 +1,5 @@
 import * as ccxt from 'ccxt';
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, promises as fsp, readFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { join, resolve } from 'path';
 
@@ -16,16 +16,16 @@ export class TradeCheckpoint {
     return JSON.parse(readFileSync(this.filename, 'utf8'));
   }
 
-  save(trade: ccxt.Trade): void {
+  async save(trade: ccxt.Trade): Promise<void> {
     const temporary = `${this.filename}.tmp`;
-    const descriptor = openSync(temporary, 'w');
+    const handle = await fsp.open(temporary, 'w');
     try {
-      writeFileSync(descriptor, JSON.stringify({ id: trade.id, timestamp: trade.timestamp, symbol: trade.symbol }));
-      fsyncSync(descriptor);
+      await handle.writeFile(JSON.stringify({ id: trade.id, timestamp: trade.timestamp, symbol: trade.symbol }));
+      await handle.sync();
     } finally {
-      closeSync(descriptor);
+      await handle.close();
     }
-    renameSync(temporary, this.filename);
+    await fsp.rename(temporary, this.filename);
   }
 }
 

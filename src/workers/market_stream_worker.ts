@@ -74,6 +74,7 @@ export class MarketStreamWorker {
     await Promise.all(this.streams.map((stream) => this.client.ensureGroup(stream, this.group)));
     this.monitorTimer = setInterval(() => {
       this.checkBacklog().catch((error: unknown) => logger.error('Redis stream backlog check failed', error));
+      this.trimAcknowledged().catch((error: unknown) => logger.error('Redis stream trim failed', error));
     }, monitorIntervalMs);
     logger.info(`QuestDB market stream worker started: consumer=${this.consumer}`);
 
@@ -164,6 +165,10 @@ export class MarketStreamWorker {
   private async checkBacklog(): Promise<void> {
     const health = await Promise.all(this.streams.map((stream) => this.readHealth(stream)));
     health.forEach((item) => this.logHealth(item));
+  }
+
+  private async trimAcknowledged(): Promise<void> {
+    for (const stream of this.streams) await this.client.trimAcknowledged(stream);
   }
 
   private async readHealth(stream: string): Promise<StreamHealth> {

@@ -5,12 +5,7 @@ import { Emitter } from '../../emitter/emitter';
 import { logger } from '../../logger';
 import { configureCcxtTransport, getCcxtProxy } from '../ccxt_proxy';
 import { recoverBinanceTrades, TradeCheckpoint } from '../trade_recovery';
-import {
-  calculateIndexedOrderbookDelta,
-  indexOrderbook,
-  IndexedOrderbookState,
-  OrderbookState,
-} from '../orderbook_delta';
+import { calculateIndexedOrderbookDelta, IndexedOrderbookState, OrderbookState } from '../orderbook_delta';
 
 type ProExchange = ccxt.Exchange & {
   watchTrades: (symbol: string) => Promise<ccxt.Trade[]>;
@@ -170,43 +165,48 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
   let lastActivity = Date.now();
   let loggedFirstTrade = false;
   let loggedFirstOrderbook = false;
-  const orderbooks = new Map<string, IndexedOrderbookState>();
   const latestOrderbooks = new Map<string, OrderbookState>();
   const persistedOrderbooks = new Map<string, IndexedOrderbookState>();
   const sourceUpdateCounts = new Map<string, number>();
   const lastSequences = new Map<string, number | undefined>();
   const lastSnapshotTimes = new Map<string, number>();
 
+  const persistOrderbook = async (symbol: string, latest: OrderbookState, timestamp: number): Promise<void> => {
+    const updateCount = sourceUpdateCounts.get(symbol) || 0;
+    const previous = persistedOrderbooks.get(symbol);
+    const snapshotDue = !previous || timestamp - (lastSnapshotTimes.get(symbol) || 0) >= orderbookSnapshotInterval;
+    if (!snapshotDue && updateCount === 0) return;
+    const { delta, indexed } = calculateIndexedOrderbookDelta(snapshotDue ? undefined : previous, latest);
+
+    if (snapshotDue || delta.asks.length > 0 || delta.bids.length > 0) {
+      await new Promise<void>((resolve, reject) => Emitter.emit(EMITTER_EVENTS.OrderBookPersist, exchangeName, {
+        symbol,
+        asks: delta.asks,
+        bids: delta.bids,
+        timestamp,
+        sequence: lastSequences.get(symbol),
+        updateType: snapshotDue ? 'snapshot' : 'delta',
+        sourceUpdateCount: updateCount,
+      }, (error?: unknown) => error ? reject(error) : resolve()));
+    }
+
+    persistedOrderbooks.set(symbol, indexed);
+    sourceUpdateCounts.set(symbol, Math.max(0, (sourceUpdateCounts.get(symbol) || 0) - updateCount));
+    if (snapshotDue) lastSnapshotTimes.set(symbol, timestamp);
+  };
+
   let persisting = false;
   const persistOrderbooks = async (): Promise<void> => {
     if (persisting) return;
     persisting = true;
     try {
-    const timestamp = Math.floor(Date.now() / orderbookPersistInterval) * orderbookPersistInterval;
-
-    for (const [symbol, latest] of latestOrderbooks) {
-      const updateCount = sourceUpdateCounts.get(symbol) || 0;
-      const previous = persistedOrderbooks.get(symbol);
-      const lastSnapshot = lastSnapshotTimes.get(symbol) || 0;
-      const snapshotDue = !previous || timestamp - lastSnapshot >= orderbookSnapshotInterval;
-      const payload = snapshotDue ? latest : calculateIndexedOrderbookDelta(previous, latest).delta;
-
-      if (snapshotDue || payload.asks.length > 0 || payload.bids.length > 0) {
-        await new Promise<void>((resolve, reject) => Emitter.emit(EMITTER_EVENTS.OrderBookPersist, exchangeName, {
-          symbol,
-          asks: payload.asks,
-          bids: payload.bids,
-          timestamp,
-          sequence: lastSequences.get(symbol),
-          updateType: snapshotDue ? 'snapshot' : 'delta',
-          sourceUpdateCount: updateCount,
-        }, (error?: unknown) => error ? reject(error) : resolve()));
-      }
-
-      persistedOrderbooks.set(symbol, indexOrderbook(latest));
-      sourceUpdateCounts.set(symbol, Math.max(0, (sourceUpdateCounts.get(symbol) || 0) - updateCount));
-      if (snapshotDue) lastSnapshotTimes.set(symbol, timestamp);
-    }
+      const timestamp = Math.floor(Date.now() / orderbookPersistInterval) * orderbookPersistInterval;
+      const failures = await Promise.all(
+        Array.from(latestOrderbooks, ([symbol, latest]) =>
+          persistOrderbook(symbol, latest, timestamp).then(() => undefined, (error: unknown) => error || new Error(String(error)))),
+      );
+      const failure = failures.find((error) => error !== undefined);
+      if (failure) throw failure;
     } finally {
       persisting = false;
     }
@@ -232,6 +232,20 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
     }
   }, Math.min(websocketIdleTimeout, 30 * 1000));
 
+  const emitTrade = (trade: ccxt.Trade): Promise<void> => {
+    const accepted = new Promise<void>((resolve, reject) => Emitter.emit('Trades', exchangeName, {
+      time: trade.timestamp || Date.now(),
+      symbol: trade.symbol,
+      side: trade.side,
+      quantity: trade.amount,
+      price: trade.price,
+      tradeId: trade.id,
+    }, (error?: unknown) => error ? reject(error) : resolve()));
+    // Prevents an unhandled rejection when a later recovery error abandons this batch.
+    accepted.catch(() => undefined);
+    return accepted;
+  };
+
   const watchTrades = async (symbol: string): Promise<void> => {
     let retryAttempt = 0;
     let reconnecting = false;
@@ -254,26 +268,20 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
           logger.info(`${exchangeName} received first trade update for ${symbol}`);
         }
 
-        const persistTrade = async (trade: ccxt.Trade): Promise<void> => {
-          await new Promise<void>((resolve, reject) => Emitter.emit('Trades', exchangeName, {
-            time: trade.timestamp || Date.now(),
-            symbol: trade.symbol,
-            side: trade.side,
-            quantity: trade.amount,
-            price: trade.price,
-            tradeId: trade.id,
-          }, (error?: unknown) => error ? reject(error) : resolve()));
-          checkpoint?.save(trade);
-          lastTrade = trade;
-        };
+        const accepted: Promise<void>[] = [];
+        let lastEmitted = lastTrade;
         for (const trade of trades) {
-          if (exchangeName === 'binance' && lastTrade) {
-            if (Number(trade.id) <= Number(lastTrade.id)) continue;
-            const recovered = await recoverBinanceTrades(client, symbol, lastTrade, trade);
-            for (const missed of recovered) await persistTrade(missed);
+          if (exchangeName === 'binance' && lastEmitted) {
+            if (Number(trade.id) <= Number(lastEmitted.id)) continue;
+            const recovered = await recoverBinanceTrades(client, symbol, lastEmitted, trade);
+            recovered.forEach((missed) => accepted.push(emitTrade(missed)));
           }
-          await persistTrade(trade);
+          accepted.push(emitTrade(trade));
+          lastEmitted = trade;
         }
+        await Promise.all(accepted);
+        if (checkpoint && lastEmitted && lastEmitted !== lastTrade) await checkpoint.save(lastEmitted);
+        lastTrade = lastEmitted;
         pendingTrades = [];
       } catch (err) {
         if (!closed) {
@@ -315,24 +323,20 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
             .slice(0, exchangeOrderbookDepth)
             .map((order) => [Number(order[0]), Number(order[1])]),
         } as OrderbookState;
-        const previous = orderbooks.get(symbol);
-        const { delta, indexed } = calculateIndexedOrderbookDelta(previous, current);
 
-        orderbooks.set(symbol, indexed);
         latestOrderbooks.set(symbol, current);
         sourceUpdateCounts.set(symbol, (sourceUpdateCounts.get(symbol) || 0) + 1);
         lastSequences.set(symbol, orderbook.nonce);
 
-        if (delta.asks.length > 0 || delta.bids.length > 0) {
-          Emitter.emit(EMITTER_EVENTS.OrderBookUpdate, exchangeName, {
-            symbol,
-            asks: delta.asks,
-            bids: delta.bids,
-            timestamp: orderbook.timestamp || Date.now(),
-            sequence: orderbook.nonce,
-            updateType: previous ? 'delta' : 'snapshot',
-          });
-        }
+        // Diffing is deferred to the persistence timer; listeners receive the full book.
+        Emitter.emit(EMITTER_EVENTS.OrderBookUpdate, exchangeName, {
+          symbol,
+          asks: current.asks,
+          bids: current.bids,
+          timestamp: orderbook.timestamp || Date.now(),
+          sequence: orderbook.nonce,
+          updateType: 'snapshot',
+        });
       } catch (err) {
         if (!closed) {
           reconnecting = true;

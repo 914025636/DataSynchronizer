@@ -40,7 +40,6 @@ jest.mock('../logger', () => ({
   },
 }));
 
-process.env.QUESTDB_FLUSH_INTERVAL_MS = '25';
 process.env.QUESTDB_PROTOCOL = 'http';
 process.env.QUESTDB_FLUSH_TIMEOUT_MS = '20';
 
@@ -87,6 +86,16 @@ describe('QuestDBWriter market routing', () => {
     expect(sender.floatColumn).toHaveBeenCalledWith('source_update_count', 42);
   });
 
+  it('flushes writes enqueued in the same turn as one batch', async () => {
+    await Promise.all([
+      QuestDBWriter.writeTrade('binance', 'BTC/USDT', 'buy', '100', '1', 'batch-1', 1250),
+      QuestDBWriter.writeTrade('binance', 'BTC/USDT', 'sell', '100', '2', 'batch-2', 1251),
+      QuestDBWriter.writeOrderbookDelta('binance', 'BTC/USDT', [[101, 2]], [[99, 3]], 1252, 11),
+    ]);
+
+    expect(sender.flush).toHaveBeenCalledTimes(1);
+  });
+
   it('resets the sender and retries when a TCP flush stalls', async () => {
     sender.flush.mockImplementationOnce(() => new Promise(() => undefined));
 
@@ -104,20 +113,17 @@ describe('QuestDBWriter market routing', () => {
     await expect(QuestDBWriter.flush()).rejects.toThrow('flush failed');
   });
 
-  it('uses the same record key when a trade is replayed', async () => {
-    await QuestDBWriter.writeTrade('binance', 'BTC/USDT', 'buy', '100', '1', 'replayed', 2000);
-    await QuestDBWriter.writeTrade('binance', 'BTC/USDT', 'buy', '100', '1', 'replayed', 2000);
-    const keys = sender.symbol.mock.calls.filter(([name]) => name === 'record_key');
-    expect(keys).toHaveLength(2);
-    expect(keys[0][1]).toEqual(keys[1][1]);
-  });
+  it('deduplicates on natural keys without writing a hashed record key', async () => {
+    const fetchMock = jest.requireMock('node-fetch') as jest.Mock;
+    await QuestDBWriter.writeTrade('kraken', 'SOL/USDT', 'buy', '100', '1', 'dedup-1', 2000);
+    await QuestDBWriter.writeOrderbookDelta('kraken', 'SOL/USDT', [[100, 1]], [[99, 0]], 3000, 20);
+    const queries = fetchMock.mock.calls.map(([url]) => decodeURIComponent(String(url).split('query=')[1]));
 
-  it('uses stable level keys for replayed orderbook rows', async () => {
-    await QuestDBWriter.writeOrderbookDelta('binance', 'BTC/USDT', [[100, 1]], [[99, 0]], 3000, 20);
-    await QuestDBWriter.writeOrderbookDelta('binance', 'BTC/USDT', [[100, 1]], [[99, 0]], 3000, 20);
-    const keys = sender.symbol.mock.calls.filter(([name]) => name === 'record_key');
-    expect(keys[0][1]).toEqual(keys[2][1]);
-    expect(keys[1][1]).toEqual(keys[3][1]);
-    expect(keys[0][1]).not.toEqual(keys[1][1]);
+    expect(queries).toContain('ALTER TABLE kraken_sol_usdt_spot_trades DEDUP ENABLE UPSERT KEYS(ts, exchange, symbol, trade_id)');
+    expect(queries).toContain(
+      'ALTER TABLE kraken_sol_usdt_spot_orderbook_delta DEDUP ENABLE UPSERT KEYS(ts, exchange, symbol, update_type, side, price)',
+    );
+    expect(queries.join('\n')).not.toContain('record_key');
+    expect(sender.symbol.mock.calls.map(([name]) => name)).not.toContain('record_key');
   });
 });

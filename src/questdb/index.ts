@@ -1,6 +1,5 @@
 import { Sender } from '@questdb/nodejs-client';
 import fetch from 'node-fetch';
-import { createHash } from 'crypto';
 import { logger } from '../logger';
 import { questdbMarketTables, QuestDBMarketTables } from './table_names';
 
@@ -39,9 +38,12 @@ async function ensureTable(table: string, kind: 'trade' | 'orderbook'): Promise<
       const columns = kind === 'trade'
         ? 'side SYMBOL, price DOUBLE, quantity DOUBLE, trade_id STRING'
         : 'side SYMBOL, update_type SYMBOL, price DOUBLE, qty DOUBLE, sequence DOUBLE, source_update_count DOUBLE';
-      await executeSchema(`CREATE TABLE IF NOT EXISTS ${table} (ts TIMESTAMP, exchange SYMBOL, symbol SYMBOL, ${columns}, record_key SYMBOL) TIMESTAMP(ts) PARTITION BY DAY WAL`);
-      await executeSchema(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS record_key SYMBOL`);
-      await executeSchema(`ALTER TABLE ${table} DEDUP ENABLE UPSERT KEYS(ts, record_key)`);
+      const upsertKeys = kind === 'trade'
+        ? 'ts, exchange, symbol, trade_id'
+        : 'ts, exchange, symbol, update_type, side, price';
+      await executeSchema(`CREATE TABLE IF NOT EXISTS ${table} (ts TIMESTAMP, exchange SYMBOL, symbol SYMBOL, ${columns}) TIMESTAMP(ts) PARTITION BY DAY WAL`);
+      // Replaces the legacy (ts, record_key) keys on existing tables.
+      await executeSchema(`ALTER TABLE ${table} DEDUP ENABLE UPSERT KEYS(${upsertKeys})`);
     })().catch((error) => {
       schemaPromises.delete(table);
       throw error;
@@ -51,16 +53,11 @@ async function ensureTable(table: string, kind: 'trade' | 'orderbook'): Promise<
   await pending;
 }
 
-function recordKey(values: unknown[]): string {
-  return createHash('sha256').update(JSON.stringify(values)).digest('hex');
-}
-const flushInterval = Number(process.env.QUESTDB_FLUSH_INTERVAL_MS || 500);
 const flushTimeout = Number(process.env.QUESTDB_FLUSH_TIMEOUT_MS || 10000);
 
 let sender: Sender | null = null;
 let initPromise: Promise<Sender> | null = null;
 let closing = false;
-let lastFlushTime = Date.now();
 let loggedFirstTradeWrite = false;
 let loggedFirstOrderbookWrite = false;
 let resetPromise: Promise<void> | null = null;
@@ -174,10 +171,7 @@ async function writeBatchWithReconnect(tasks: WriteTask[], flush: boolean): Prom
 
     try {
       tasks.forEach((task) => task.write(activeSender));
-      if (flush) {
-        await flushWithTimeout(activeSender);
-        lastFlushTime = Date.now();
-      }
+      if (flush) await flushWithTimeout(activeSender);
       return;
     } catch (error) {
       if (!retried && isTransportDisconnected(error) && !closing) {
@@ -197,19 +191,11 @@ async function writeBatchWithReconnect(tasks: WriteTask[], flush: boolean): Prom
 }
 
 const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
-const wait = (delay: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, delay));
 
 async function drainWriteQueue(): Promise<void> {
-  while (!closing) {
-    if (pendingWrites.length === 0) {
-      const remainingFlushDelay = Math.max(0, flushInterval - (Date.now() - lastFlushTime));
-      if (remainingFlushDelay > 0) await wait(remainingFlushDelay);
-      if (pendingWrites.length === 0) {
-        await writeBatchWithReconnect([], true);
-        return;
-      }
-    }
-
+  // Let writes enqueued in the same turn join the first batch.
+  await yieldToEventLoop();
+  while (!closing && pendingWrites.length > 0) {
     const batch = pendingWrites.splice(0, writeBatchSize);
     try {
       await writeBatchWithReconnect(batch, true);
@@ -303,7 +289,6 @@ export const QuestDBWriter = {
           .symbol('exchange', exchange)
           .symbol('symbol', symbol)
           .symbol('side', side)
-          .symbol('record_key', recordKey([exchange, symbol, tradeId]))
           .floatColumn('price', parseFloat(price))
           .floatColumn('quantity', parseFloat(quantity))
           .stringColumn('trade_id', tradeId)
@@ -351,7 +336,6 @@ export const QuestDBWriter = {
             .symbol('symbol', symbol)
             .symbol('side', side)
             .symbol('update_type', updateType)
-            .symbol('record_key', recordKey([exchange, symbol, timestamp, updateType, side, price]))
             .floatColumn('price', price)
             .floatColumn('qty', qty)
             .floatColumn('sequence', sequence || 0)
@@ -383,7 +367,6 @@ export const QuestDBWriter = {
     if (sender) {
       try {
         await flushWithTimeout(sender);
-        lastFlushTime = Date.now();
       } catch (e) {
         logRateLimitedError('questdb-flush', 'QuestDB flush error', e);
         throw e;
