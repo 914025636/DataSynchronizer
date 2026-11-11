@@ -273,8 +273,12 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
         for (const trade of trades) {
           if (exchangeName === 'binance' && lastEmitted) {
             if (Number(trade.id) <= Number(lastEmitted.id)) continue;
-            const recovered = await recoverBinanceTrades(client, symbol, lastEmitted, trade);
-            recovered.forEach((missed) => accepted.push(emitTrade(missed)));
+            try {
+              const recovered = await recoverBinanceTrades(client, symbol, lastEmitted, trade);
+              recovered.forEach((missed) => accepted.push(emitTrade(missed)));
+            } catch (recoveryErr) {
+              logger.warn(`${exchangeName} trade recovery failed for ${symbol} (gap: ${Number(lastEmitted.id)} -> ${Number(trade.id)})`, recoveryErr);
+            }
           }
           accepted.push(emitTrade(trade));
           lastEmitted = trade;

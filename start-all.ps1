@@ -68,7 +68,7 @@ try {
 
     Push-Location $projectDirectory
     try {
-        & "$projectDirectory\start-questdb.ps1" -InstallDir $QuestDBInstallDir -DataDir $QuestDBDataDir
+        & "$projectDirectory\start-local-services.ps1"
 
         if (-not (Test-Path "$projectDirectory\node_modules")) {
             & npm.cmd install

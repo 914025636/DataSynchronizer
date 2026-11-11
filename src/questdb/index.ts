@@ -238,7 +238,7 @@ async function getSender(): Promise<Sender> {
   if (!initPromise) {
     initPromise = Sender.fromConfig(configStr)
       .then(async (s) => {
-        await s.connect();
+        if (!['http', 'https'].includes(QUESTDB_PROTOCOL)) await s.connect();
         sender = s;
         logger.info(`QuestDB sender initialized: ${QUESTDB_PROTOCOL}://${QUESTDB_HOST}:${QUESTDB_PORT}`);
         return s;

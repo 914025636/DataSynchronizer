@@ -5,7 +5,6 @@ require('./redis');
 
 import { logger } from './logger';
 
-import SentimentAPI from './sentiment/sentiment';
 import LivefeedAPI from './livefeed/livefeed';
 import { MarketDataAPI } from './marketdata';
 import PriceTickersAPI from './pricetickers';
@@ -66,6 +65,7 @@ async function main(): Promise<void> {
   }
   // Twitter/Reddit API
   if (Sentiment && parseInt(Sentiment) === 1) {
+    const { default: SentimentAPI } = await import('./sentiment/sentiment');
     await SentimentAPI.start();
   }
   // Warden initializes the configured exact tradepairs before Livefeed subscribes

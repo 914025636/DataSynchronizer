@@ -37,15 +37,24 @@ class LivefeedAPI {
   private async tradepairsWatcher(): Promise<void> {
     // Looking after new tradepairs!
     try {
-      const selectedTradepairs = await TradepairQueries.selectTradepairsAll();
+      const selectedTradepairs =
+        this.allowedTradepairs.size > 0
+          ? Array.from(this.allowedTradepairs).map((value) => {
+              const separatorIndex = value.indexOf(':');
+              return {
+                exchange: value.slice(0, separatorIndex),
+                symbol: value.slice(separatorIndex + 1),
+                id: value.slice(separatorIndex + 1),
+                baseId: '',
+                quoteId: '',
+              } as RowDataPacket;
+            })
+          : await TradepairQueries.selectTradepairsAll();
 
       if (!selectedTradepairs) {
         throw new Error('LiveFeed Tradepairs are empty');
       }
-      const tradepairs =
-        this.allowedTradepairs.size > 0
-          ? selectedTradepairs.filter((elem) => this.allowedTradepairs.has(`${elem.exchange}:${elem.symbol}`))
-          : selectedTradepairs;
+      const tradepairs = selectedTradepairs;
 
       const newSymbols = tradepairs.map((elem) => `${elem.exchange}:${elem.symbol}`);
 

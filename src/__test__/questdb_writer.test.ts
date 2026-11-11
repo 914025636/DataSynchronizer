@@ -96,13 +96,13 @@ describe('QuestDBWriter market routing', () => {
     expect(sender.flush).toHaveBeenCalledTimes(1);
   });
 
-  it('resets the sender and retries when a TCP flush stalls', async () => {
+  it('resets the sender and retries when an HTTP flush stalls', async () => {
     sender.flush.mockImplementationOnce(() => new Promise(() => undefined));
 
     await QuestDBWriter.writeTrade('bybit', 'ETH/USDT', 'buy', '2000', '1', 'trade-3', 1300);
 
     expect(sender.close).toHaveBeenCalled();
-    expect(sender.connect).toHaveBeenCalledTimes(1);
+    expect(sender.connect).not.toHaveBeenCalled();
     expect(sender.flush).toHaveBeenCalledTimes(2);
   });
 

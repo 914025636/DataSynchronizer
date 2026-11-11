@@ -1,0 +1,60 @@
+2026-11-11T15:16:57.125309Z A server-main QuestDB 9.4.3. Copyright (C) 2014-2026, all rights reserved.
+2026-11-11T15:16:57.125770Z A server-main windows-x86-64 [AVX2,8, 64 bits, 20 processors]
+2026-11-11T15:16:57.135707Z I server-main Web Console is up to date
+2026-11-11T15:16:57.142982Z A server-main Server config: qdbroot\conf\server.conf
+2026-11-11T15:16:57.182084Z I i.q.c.t.t.InputFormatConfiguration loading input format config [resource=/text_loader.json]
+2026-11-11T15:16:57.222380Z I server-main changing logger timezone [from=`UTC`, to=`Z`]
+2026-11-11T15:16:57.222451Z A server-main OS: Windows 11 10.0, JDK: GraalVM Community 25.0.2
+2026-11-11T15:16:57.222473Z A server-main Config: http.enabled:true, tcp.enabled:true, pg.enabled:true
+2026-11-11T15:16:57.222491Z A server-main  - open database [b295addd-562e-705b-7129-79d574beed6b]
+2026-11-11T15:16:57.223203Z A server-main  - db root: [path=D:\Git\DataSynchronizer\qdbroot\db, magic=0x2b, fs=NTFS] -> SUPPORTED
+2026-11-11T15:16:57.223466Z I server-main  - .checkpoint root: [path=D:\Git\DataSynchronizer\qdbroot\.checkpoint] -> NOT FOUND
+2026-11-11T15:16:57.223610Z I server-main  - snapshot root: [path=D:\Git\DataSynchronizer\qdbroot\snapshot] -> NOT FOUND
+2026-11-11T15:16:57.224039Z A server-main  - sql copy input root: [path=D:\Git\DataSynchronizer\qdbroot\import, magic=0x2b, fs=NTFS] -> SUPPORTED
+2026-11-11T15:16:57.224100Z I server-main  - sql copy input worker root: [path=D:\Git\DataSynchronizer\qdbroot\tmp] -> NOT FOUND
+2026-11-11T15:16:57.226195Z A server-main  - SQL JIT compiler mode: on
+2026-11-11T15:16:57.226240Z A server-main  - configured ram.usage.limit.bytes: 0 (no limit)
+2026-11-11T15:16:57.226292Z A server-main  - configured ram.usage.limit.percent: 96
+2026-11-11T15:16:57.226307Z A server-main  - system RAM: 31.8 GiB
+2026-11-11T15:16:57.226546Z A server-main  - resolved RAM usage limit: 30.5 GiB
+2026-11-11T15:16:57.228730Z A server-main Metrics are disabled, health check endpoint will not consider unhandled errors
+2026-11-11T15:16:57.238357Z A i.q.c.CairoEngine loading functions from io.questdb
+2026-11-11T15:16:57.580770Z A i.q.c.CairoEngine loaded 1083 functions
+2026-11-11T15:16:57.581949Z I i.q.g.FunctionFactoryCache loading functions [test=false]
+2026-11-11T15:16:57.651661Z I i.q.c.m.EngineMigration upgraded to [migrationVersion=429]
+2026-11-11T15:16:57.658527Z I i.q.c.TableNameRegistryStore reloading tables file [path=D:\Git\DataSynchronizer\qdbroot\db\tables.d.0, threadId=3]
+2026-11-11T15:16:57.666043Z I i.q.c.TableNameRegistryStore reloading tables file [path=D:\Git\DataSynchronizer\qdbroot\db\tables.d.0, threadId=3]
+2026-11-11T15:16:57.673428Z I i.q.c.p.WriterPool open [table=_query_trace, thread=3]
+2026-11-11T15:16:57.680933Z I i.q.c.TableWriter open '_query_trace'
+2026-11-11T15:16:57.746209Z I i.q.g.e.QueryProgress fin [id=-1, sql=`CREATE TABLE IF NOT EXISTS "sys.column_versions_purge_log" (ts timestamp, table_name symbol, column_name symbol, table_id int, truncate_version long, columnType int, table_partition_by int, updated_txn long, column_version long, partition_timestamp timestamp, partition_name_txn long,completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=true, time=1250200]
+2026-11-11T15:16:57.754257Z I i.q.g.e.QueryProgress exe [id=0, sql=`CREATE TABLE IF NOT EXISTS "sys.column_versions_purge_log" (ts timestamp, table_name symbol, column_name symbol, table_id int, truncate_version long, columnType int, table_partition_by int, updated_txn long, column_version long, partition_timestamp timestamp, partition_name_txn long,completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=false]
+2026-11-11T15:16:57.754682Z I i.q.g.e.QueryProgress fin [id=0, sql=`CREATE TABLE IF NOT EXISTS "sys.column_versions_purge_log" (ts timestamp, table_name symbol, column_name symbol, table_id int, truncate_version long, columnType int, table_partition_by int, updated_txn long, column_version long, partition_timestamp timestamp, partition_name_txn long,completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=true, time=437300]
+2026-11-11T15:16:57.754788Z I i.q.c.p.WriterPool open [table=sys.column_versions_purge_log, thread=3]
+2026-11-11T15:16:57.754892Z I i.q.c.TableWriter open 'sys.column_versions_purge_log'
+2026-11-11T15:16:57.776745Z I i.q.g.e.QueryProgress exe [id=1, sql=`SELECT * FROM "sys.column_versions_purge_log" WHERE completed = null`, principal=admin, cache=false, jit=true]
+2026-11-11T15:16:57.777149Z I i.q.g.e.QueryProgress fin [id=1, sql=`SELECT * FROM "sys.column_versions_purge_log" WHERE completed = null`, principal=admin, cache=false, jit=true, time=406900]
+2026-11-11T15:16:57.790453Z I i.q.g.e.QueryProgress fin [id=-1, sql=`CREATE TABLE IF NOT EXISTS "sys.posting_seal_purge_log" (ts timestamp, table_name symbol, table_id int, column_name symbol, posting_column_name_txn long, seal_txn long, partition_timestamp timestamp, partition_name_txn long, partition_by int, from_table_txn long, to_table_txn long, timestamp_type int, completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=true, time=39200]
+2026-11-11T15:16:57.792877Z I i.q.g.e.QueryProgress exe [id=2, sql=`CREATE TABLE IF NOT EXISTS "sys.posting_seal_purge_log" (ts timestamp, table_name symbol, table_id int, column_name symbol, posting_column_name_txn long, seal_txn long, partition_timestamp timestamp, partition_name_txn long, partition_by int, from_table_txn long, to_table_txn long, timestamp_type int, completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=false]
+2026-11-11T15:16:57.793036Z I i.q.g.e.QueryProgress fin [id=2, sql=`CREATE TABLE IF NOT EXISTS "sys.posting_seal_purge_log" (ts timestamp, table_name symbol, table_id int, column_name symbol, posting_column_name_txn long, seal_txn long, partition_timestamp timestamp, partition_name_txn long, partition_by int, from_table_txn long, to_table_txn long, timestamp_type int, completed timestamp) timestamp(ts) partition by MONTH BYPASS WAL`, principal=admin, cache=false, jit=true, time=159600]
+2026-11-11T15:16:57.793088Z I i.q.c.p.WriterPool open [table=sys.posting_seal_purge_log, thread=3]
+2026-11-11T15:16:57.793166Z I i.q.c.TableWriter open 'sys.posting_seal_purge_log'
+2026-11-11T15:16:57.799044Z I i.q.g.e.QueryProgress exe [id=3, sql=`SELECT * FROM "sys.posting_seal_purge_log" WHERE completed = null`, principal=admin, cache=false, jit=true]
+2026-11-11T15:16:57.799164Z I i.q.g.e.QueryProgress fin [id=3, sql=`SELECT * FROM "sys.posting_seal_purge_log" WHERE completed = null`, principal=admin, cache=false, jit=true, time=134900]
+2026-11-11T15:16:57.811501Z I i.q.g.e.QueryProgress fin [id=-1, sql=`CREATE TABLE IF NOT EXISTS "sys.text_import_log" (ts timestamp, id varchar, table_name symbol, file symbol, phase symbol, status symbol, message varchar,rows_handled long,rows_imported long,errors long) timestamp(ts) partition by DAY BYPASS WAL`, principal=admin, cache=false, jit=true, time=11000]
+2026-11-11T15:16:57.811927Z I i.q.g.e.QueryProgress exe [id=4, sql=`CREATE TABLE IF NOT EXISTS "sys.text_import_log" (ts timestamp, id varchar, table_name symbol, file symbol, phase symbol, status symbol, message varchar,rows_handled long,rows_imported long,errors long) timestamp(ts) partition by DAY BYPASS WAL`, principal=admin, cache=false, jit=false]
+2026-11-11T15:16:57.812074Z I i.q.g.e.QueryProgress fin [id=4, sql=`CREATE TABLE IF NOT EXISTS "sys.text_import_log" (ts timestamp, id varchar, table_name symbol, file symbol, phase symbol, status symbol, message varchar,rows_handled long,rows_imported long,errors long) timestamp(ts) partition by DAY BYPASS WAL`, principal=admin, cache=false, jit=true, time=150400]
+2026-11-11T15:16:57.812114Z I i.q.c.p.WriterPool open [table=sys.text_import_log, thread=3]
+2026-11-11T15:16:57.812287Z I i.q.c.TableWriter open 'sys.text_import_log'
+2026-11-11T15:16:57.816064Z I i.q.WorkerPoolManager custom thread pool [name=export, requester=export, workers=2, priority=5]
+2026-11-11T15:16:57.820083Z I i.q.c.p.WriterPool open [table=sys.telemetry_wal, thread=3]
+2026-11-11T15:16:57.820165Z I i.q.c.TableWriter open 'sys.telemetry_wal'
+2026-11-11T15:16:57.822320Z I i.q.c.p.WriterPool open [table=sys.telemetry_mat_view, thread=3]
+2026-11-11T15:16:57.822421Z I i.q.c.TableWriter open 'sys.telemetry_mat_view'
+2026-11-11T15:16:57.824084Z I i.q.c.p.WriterPool open [table=telemetry, thread=3]
+2026-11-11T15:16:57.824131Z I i.q.c.TableWriter open 'telemetry'
+2026-11-11T15:16:57.837302Z I i.q.c.TableWriter switched partition [path=\telemetry\2026-07-18, rowCount=7]
+2026-11-11T15:16:57.840179Z I i.q.c.TableWriter switched partition [path=\telemetry\2026-11-11.6, rowCount=0]
+2026-11-11T15:16:57.840544Z I i.q.c.TableWriter Partition's TTL expired, evicting [table=telemetry, partitionTs=2026-07-18T00:00:00.000000Z]
+2026-11-11T15:16:57.846266Z I i.q.c.p.WriterPool open [table=telemetry_config, thread=3]
+2026-11-11T15:16:57.846323Z I i.q.c.TableWriter open 'telemetry_config'
+2026-11-11T15:16:57.851068Z I i.q.c.TableWriter switched partition [path=\telemetry_config\default, rowCount=1]

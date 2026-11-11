@@ -35,11 +35,17 @@ function parseRedisVersion(info: string): number[] | null {
 function redisVersion(client: StreamRedis): Promise<number[] | null> {
   let version = redisVersions.get(client);
   if (!version) {
+    if (typeof client.info !== 'function') return Promise.resolve(null);
     version = client.info('server').then(parseRedisVersion);
     version.catch(() => redisVersions.delete(client));
     redisVersions.set(client, version);
   }
   return version;
+}
+
+function supportsIdlePending(version: number[] | null): boolean {
+  if (!version || version.length === 0) return false;
+  return version[0] > 6 || (version[0] === 6 && (version[1] || 0) >= 2);
 }
 
 async function ensureStreamsSupported(client: StreamRedis): Promise<void> {
@@ -174,15 +180,20 @@ export class MarketStreamConsumer {
     minIdleMs: number,
     group: string = MARKET_STREAM_GROUP,
   ): Promise<RedisStreamEntry[]> {
-    const pending = (await this.client.xpending(
-      stream,
-      group,
-      'IDLE',
-      minIdleMs,
-      '-',
-      '+',
-      MARKET_STREAM_READ_COUNT,
-    )) as unknown[];
+    const version = await redisVersion(this.client);
+    const pending = supportsIdlePending(version)
+      ? ((await this.client.xpending(
+          stream,
+          group,
+          'IDLE',
+          minIdleMs,
+          '-',
+          '+',
+          MARKET_STREAM_READ_COUNT,
+        )) as unknown[])
+      : ((await this.client.xpending(stream, group, '-', '+', MARKET_STREAM_READ_COUNT)) as unknown[]).filter(
+          (item) => Array.isArray(item) && Number(item[2]) >= minIdleMs,
+        );
     const ids = pending
       .filter((item) => Array.isArray(item) && item.length > 0)
       .map((item) => String((item as unknown[])[0]));
