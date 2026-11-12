@@ -5,6 +5,8 @@ import { logger } from '../logger';
 import { CCXT_API } from '../exchange/ccxt_controller';
 import { BaseDB } from '../database';
 
+const MARKET_DATA_INSERT_CHUNK_SIZE = 200;
+
 class MarketDataClass {
   exchanges: string[];
   constructor() {
@@ -84,8 +86,11 @@ class MarketDataClass {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async marketDataReplace(exchange: string, marketData: any[]): Promise<void> {
+    const connection = await BaseDB.getConnection();
+
     try {
-      await BaseDB.query('DELETE FROM `market_datas` WHERE exchange = ?;', [exchange]);
+      await connection.beginTransaction();
+      await connection.query('DELETE FROM `market_datas` WHERE exchange = ?;', [exchange]);
 
       // Stringify JSONs for database storage
       const marketDataValues = marketData.map((e) => {
@@ -109,16 +114,22 @@ class MarketDataClass {
         ];
       });
 
-      if (marketDataValues.length > 0) {
-        await BaseDB.query(
+      // Large exchanges exceed max_allowed_packet in a single statement
+      for (const chunk of _.chunk(marketDataValues, MARKET_DATA_INSERT_CHUNK_SIZE)) {
+        await connection.query(
           'REPLACE INTO `market_datas` (`exchange`, `limits`, `precision_data`, `tierBased`, `percentage`, `taker`, `maker`, `id`, `symbol`, `baseId`, `quoteId`, `base`, `quote`, `active`, `info`) VALUES ?',
-          [marketDataValues],
+          [chunk],
         );
       }
 
+      await connection.commit();
+
       return;
     } catch (e) {
+      await connection.rollback().catch(() => undefined);
       logger.error('Error', e);
+    } finally {
+      connection.release();
     }
   }
 }

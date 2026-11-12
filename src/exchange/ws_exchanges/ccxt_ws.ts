@@ -4,7 +4,7 @@ import { EMITTER_EVENTS } from '../../constants';
 import { Emitter } from '../../emitter/emitter';
 import { logger } from '../../logger';
 import { configureCcxtTransport, getCcxtProxy } from '../ccxt_proxy';
-import { recoverBinanceTrades, TradeCheckpoint } from '../trade_recovery';
+import { recoverBinanceTrades, TradeCheckpoint, TradeGap, TradeGapLog } from '../trade_recovery';
 import { calculateIndexedOrderbookDelta, IndexedOrderbookState, OrderbookState } from '../orderbook_delta';
 
 type ProExchange = ccxt.Exchange & {
@@ -14,6 +14,9 @@ type ProExchange = ccxt.Exchange & {
 };
 
 type ProExchangeConstructor = new (config?: Record<string, unknown>) => ProExchange;
+
+// Binance futures streams publish non-market fills ("X": "NA") without price or quantity
+const isPlaceholderTrade = (trade: ccxt.Trade): boolean => !(Number(trade.price) > 0 && Number(trade.amount) > 0);
 type CloseSocket = () => boolean;
 
 const websocketRetryBaseDelay = Number(process.env.CCXT_WEBSOCKET_RETRY_BASE_MS || 1000);
@@ -246,6 +249,12 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
     return accepted;
   };
 
+  const gapLog = exchangeName === 'binance' ? new TradeGapLog() : undefined;
+  const recordGap = async (symbol: string, gap: TradeGap): Promise<void> => {
+    logger.error(`${exchangeName} trade gap recorded for ${symbol}: IDs ${gap.fromId}-${gap.toId} (${gap.reason})`);
+    if (gapLog) await gapLog.record(exchangeName, symbol, gap);
+  };
+
   const watchTrades = async (symbol: string): Promise<void> => {
     let retryAttempt = 0;
     let reconnecting = false;
@@ -268,19 +277,28 @@ export const openSocket = (exchange: string, symbols: string[]): CloseSocket => 
           logger.info(`${exchangeName} received first trade update for ${symbol}`);
         }
 
-        const accepted: Promise<void>[] = [];
+        let accepted: Promise<void>[] = [];
         let lastEmitted = lastTrade;
         for (const trade of trades) {
           if (exchangeName === 'binance' && lastEmitted) {
             if (Number(trade.id) <= Number(lastEmitted.id)) continue;
-            try {
-              const recovered = await recoverBinanceTrades(client, symbol, lastEmitted, trade);
-              recovered.forEach((missed) => accepted.push(emitTrade(missed)));
-            } catch (recoveryErr) {
-              logger.warn(`${exchangeName} trade recovery failed for ${symbol} (gap: ${Number(lastEmitted.id)} -> ${Number(trade.id)})`, recoveryErr);
+            if (Number(trade.id) > Number(lastEmitted.id) + 1) {
+              // Recovery checkpoints every page, so earlier trades of this batch must be durable first
+              await Promise.all(accepted);
+              accepted = [];
+              await recoverBinanceTrades(client, symbol, lastEmitted, trade, {
+                trades: async (recovered) => {
+                  await Promise.all(recovered.map(emitTrade));
+                  const last = recovered[recovered.length - 1];
+                  if (checkpoint) await checkpoint.save(last);
+                  lastTrade = last;
+                },
+                gap: (gap) => recordGap(symbol, gap),
+              });
             }
           }
-          accepted.push(emitTrade(trade));
+          // Placeholder fills only advance the ID sequence
+          if (!isPlaceholderTrade(trade)) accepted.push(emitTrade(trade));
           lastEmitted = trade;
         }
         await Promise.all(accepted);

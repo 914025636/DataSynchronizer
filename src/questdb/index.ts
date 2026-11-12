@@ -238,6 +238,7 @@ async function getSender(): Promise<Sender> {
   if (!initPromise) {
     initPromise = Sender.fromConfig(configStr)
       .then(async (s) => {
+        // HTTP senders reject connect(); only TCP needs an explicit connection
         if (!['http', 'https'].includes(QUESTDB_PROTOCOL)) await s.connect();
         sender = s;
         logger.info(`QuestDB sender initialized: ${QUESTDB_PROTOCOL}://${QUESTDB_HOST}:${QUESTDB_PORT}`);

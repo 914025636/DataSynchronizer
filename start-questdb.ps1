@@ -2,7 +2,7 @@ param(
     [string]$InstallDir = 'D:\Program Files\questdb-9.4.3-rt-windows-x86-64',
     [string]$DataDir = (Join-Path $PSScriptRoot 'qdbroot'),
     [switch]$Restart,
-    [int]$MaxWaitSeconds = 30
+    [int]$MaxWaitSeconds = 60
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +11,23 @@ $questdbExe = Join-Path $InstallDir 'bin\questdb.exe'
 $repoConfig = Join-Path $PSScriptRoot 'qdbroot\conf\server.conf'
 $dataConfigDir = Join-Path $DataDir 'conf'
 $dataConfig = Join-Path $dataConfigDir 'server.conf'
+$healthUri = 'http://127.0.0.1:9000/exec?query=select%201'
+
+function Test-QuestDBHealthy {
+    try {
+        return (Invoke-WebRequest -Uri $healthUri -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200
+    } catch {
+        return $false
+    }
+}
+
+# Console mode runs QuestDB as a java.exe child of questdb.exe; match it by data directory
+function Get-QuestDBJava {
+    $fullDataDir = [IO.Path]::GetFullPath($DataDir)
+    Get-CimInstance Win32_Process -Filter "Name = 'java.exe'" | Where-Object {
+        $_.CommandLine -and $_.CommandLine.Contains('io.questdb') -and $_.CommandLine.Contains($fullDataDir)
+    }
+}
 
 if (-not (Test-Path $questdbExe)) {
     throw "QuestDB executable not found: $questdbExe"
@@ -30,46 +47,32 @@ if (Test-Path $repoConfig) {
 }
 
 if ($Restart) {
-    Write-Host "Stopping QuestDB (if running) with data directory: $DataDir"
-    $stopOutput = (& $questdbExe stop -d $DataDir 2>&1 | Out-String)
-    $stopOutput | Out-Host
-    if ($stopOutput -match 'ACCESS DENIED') {
-        throw 'QuestDB stop/start requires Administrator privileges. Re-run this script in an elevated PowerShell.'
+    $running = @(Get-QuestDBJava)
+    if ($running.Count -gt 0) {
+        Write-Host "Stopping QuestDB (pid $($running.ProcessId -join ', ')) with data directory: $DataDir"
+        # Console mode has no stop command; WAL tables recover from an abrupt stop
+        $running | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+        $running | ForEach-Object { Wait-Process -Id $_.ProcessId -Timeout 30 -ErrorAction SilentlyContinue }
     }
+} elseif (Test-QuestDBHealthy) {
+    Write-Host 'QuestDB is already running: HTTP /exec is ready.' -ForegroundColor Green
+    return
 }
 
+# Console mode needs neither a Windows service nor Administrator rights
 Write-Host "Starting QuestDB with data directory: $DataDir"
-$startOutput = (& $questdbExe start -d $DataDir 2>&1 | Out-String)
-$startOutput | Out-Host
-if ($startOutput -match 'ACCESS DENIED') {
-    throw 'QuestDB stop/start requires Administrator privileges. Re-run this script in an elevated PowerShell.'
-}
-
-$httpReady = $false
-$ilpReady = $false
+$process = Start-Process -FilePath $questdbExe -ArgumentList ('-d "{0}"' -f $DataDir) `
+    -WorkingDirectory (Split-Path $questdbExe) -WindowStyle Minimized -PassThru
 
 for ($i = 0; $i -lt $MaxWaitSeconds; $i++) {
-    try {
-        $response = Invoke-WebRequest -Uri 'http://127.0.0.1:9000/exec?query=select%201' -UseBasicParsing -TimeoutSec 2
-        if ($response.StatusCode -eq 200) {
-            $httpReady = $true
-        }
-    } catch {
-        $httpReady = $false
+    if (Test-QuestDBHealthy) {
+        Write-Host 'QuestDB is healthy: HTTP /exec is ready.' -ForegroundColor Green
+        return
     }
-
-    $ilpReady = (Test-NetConnection 127.0.0.1 -Port 9009 -WarningAction SilentlyContinue).TcpTestSucceeded
-
-    if ($httpReady -and $ilpReady) {
-        break
+    if ($process.HasExited) {
+        throw "QuestDB exited during startup (code $($process.ExitCode)). See logs in $(Join-Path $DataDir 'log')."
     }
-
     Start-Sleep -Seconds 1
 }
 
-if (-not $httpReady -or -not $ilpReady) {
-    & $questdbExe status -d $DataDir | Out-Host
-    throw "QuestDB health check failed. HTTP(9000)=$httpReady, ILP(9009)=$ilpReady"
-}
-
-Write-Host 'QuestDB is healthy: HTTP /exec and ILP TCP are ready.' -ForegroundColor Green
+throw "QuestDB health check failed after $MaxWaitSeconds seconds. See logs in $(Join-Path $DataDir 'log')."

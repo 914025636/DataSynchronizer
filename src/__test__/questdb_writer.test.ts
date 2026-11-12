@@ -13,7 +13,8 @@ type MockSender = {
 };
 
 const sender: MockSender = {
-  connect: jest.fn().mockResolvedValue(undefined),
+  // Matches @questdb/nodejs-client, which rejects connect() on HTTP transport
+  connect: jest.fn().mockRejectedValue(new Error("'connect()' is not required for HTTP transport")),
   close: jest.fn().mockResolvedValue(undefined),
   flush: jest.fn().mockResolvedValue(undefined),
   table: jest.fn((tableName: string) => {
@@ -102,6 +103,7 @@ describe('QuestDBWriter market routing', () => {
     await QuestDBWriter.writeTrade('bybit', 'ETH/USDT', 'buy', '2000', '1', 'trade-3', 1300);
 
     expect(sender.close).toHaveBeenCalled();
+    expect(jest.requireMock('@questdb/nodejs-client').Sender.fromConfig).toHaveBeenCalledTimes(1);
     expect(sender.connect).not.toHaveBeenCalled();
     expect(sender.flush).toHaveBeenCalledTimes(2);
   });

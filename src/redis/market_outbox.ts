@@ -3,6 +3,7 @@ import { join } from 'path';
 import { randomBytes } from 'crypto';
 import { MarketStreamEvent } from './market_streams';
 import { logger } from '../logger';
+import { renameWithRetry } from '../utils/fs_retry';
 
 export type OutboxMessage = { stream: string; event: MarketStreamEvent };
 
@@ -134,7 +135,7 @@ export class MarketOutbox {
     } finally {
       await handle.close();
     }
-    await fsp.rename(temporary, join(this.directory, `${id}.json`));
+    await renameWithRetry(temporary, join(this.directory, `${id}.json`));
     return `${id}.json`;
   }
 
@@ -147,7 +148,7 @@ export class MarketOutbox {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
       if (!(error instanceof SyntaxError)) throw error;
-      await fsp.rename(filename, `${filename}.corrupt`);
+      await renameWithRetry(filename, `${filename}.corrupt`);
       logger.error(`Market outbox quarantined unreadable batch ${name}`, error);
       return null;
     }

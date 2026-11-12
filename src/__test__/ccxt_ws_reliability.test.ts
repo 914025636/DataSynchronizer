@@ -1,7 +1,8 @@
 const mockWatchTrades = jest.fn();
 const mockWatchOrderBook = jest.fn();
-const mockRecover = jest.fn().mockResolvedValue([]);
+const mockRecover = jest.fn().mockResolvedValue(undefined);
 const mockCheckpointSave = jest.fn();
+const mockGapRecord = jest.fn().mockResolvedValue(undefined);
 jest.mock('ccxt', () => ({ pro: { binance: jest.fn(() => ({
   has: { watchTrades: true, watchOrderBook: true },
   loadMarkets: jest.fn().mockResolvedValue(undefined),
@@ -12,6 +13,7 @@ jest.mock('ccxt', () => ({ pro: { binance: jest.fn(() => ({
 jest.mock('../exchange/trade_recovery', () => ({
   recoverBinanceTrades: mockRecover,
   TradeCheckpoint: jest.fn(() => ({ load: () => undefined, save: mockCheckpointSave })),
+  TradeGapLog: jest.fn(() => ({ record: mockGapRecord })),
 }));
 jest.mock('../logger', () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
 import { openSocket } from '../exchange/ws_exchanges/ccxt_ws';
@@ -26,6 +28,8 @@ describe('active CCXT websocket reliability', () => {
     mockWatchTrades.mockReset().mockImplementation(() => new Promise(() => undefined));
     mockWatchOrderBook.mockReset().mockImplementation(() => new Promise(() => undefined));
     mockCheckpointSave.mockClear();
+    mockGapRecord.mockClear();
+    mockRecover.mockClear();
     Emitter.removeAllListeners();
   });
   afterEach(() => { Emitter.removeAllListeners(); jest.clearAllTimers(); jest.useRealTimers(); });
@@ -91,14 +95,14 @@ describe('active CCXT websocket reliability', () => {
     const missed = { ...first, id: '2', timestamp: 2 };
     const next = { ...first, id: '3', timestamp: 3 };
     mockWatchTrades.mockResolvedValueOnce([first]).mockResolvedValueOnce([next]);
-    mockRecover.mockResolvedValueOnce([missed]);
+    mockRecover.mockImplementationOnce(async (_client, _symbol, _previous, _next, sink) => sink.trades([missed]));
     const ids: string[] = [];
     Emitter.on('Trades', (_exchange, trade, acknowledge) => { ids.push(trade.tradeId); acknowledge(); });
     const close = openSocket('binance', ['BTC/USDT']);
     try {
       await settle();
       expect(ids).toEqual(['1', '2', '3']);
-      expect(mockCheckpointSave.mock.calls.map(([saved]) => saved.id)).toEqual(['1', '3']);
+      expect(mockCheckpointSave.mock.calls.map(([saved]) => saved.id)).toEqual(['1', '2', '3']);
     } finally { close(); }
   });
 
@@ -119,6 +123,38 @@ describe('active CCXT websocket reliability', () => {
       await settle();
       expect(mockCheckpointSave).toHaveBeenCalledTimes(1);
       expect(mockCheckpointSave.mock.calls[0][0].id).toBe('2');
+    } finally { close(); }
+  });
+  it('skips placeholder fills but still advances the checkpoint past them', async () => {
+    const first = { id: '1', timestamp: 1, symbol: 'BTC/USDT:USDT', side: 'buy', price: 100, amount: 1 };
+    const placeholder = { ...first, id: '2', timestamp: 2, price: 0, amount: 0 };
+    const third = { ...first, id: '3', timestamp: 3 };
+    mockWatchTrades.mockResolvedValueOnce([first, placeholder, third]);
+    const ids: string[] = [];
+    Emitter.on('Trades', (_exchange, trade, acknowledge) => { ids.push(trade.tradeId); acknowledge(); });
+    const close = openSocket('binance', ['BTC/USDT:USDT']);
+    try {
+      await settle();
+      expect(ids).toEqual(['1', '3']);
+      expect(mockRecover).not.toHaveBeenCalled();
+      expect(mockCheckpointSave.mock.calls.map(([saved]) => saved.id)).toEqual(['3']);
+    } finally { close(); }
+  });
+
+  it('records unrecoverable gaps and keeps streaming live trades', async () => {
+    const first = { id: '1', timestamp: 1, symbol: 'BTC/USDT:USDT', side: 'buy', price: 100, amount: 1 };
+    const next = { ...first, id: '5', timestamp: 5 };
+    const gap = { fromId: 2, toId: 4, fromTimestamp: 1, toTimestamp: 5, reason: 'requires apiKey' };
+    mockWatchTrades.mockResolvedValueOnce([first]).mockResolvedValueOnce([next]);
+    mockRecover.mockImplementationOnce(async (_client, _symbol, _previous, _next, sink) => sink.gap(gap));
+    const ids: string[] = [];
+    Emitter.on('Trades', (_exchange, trade, acknowledge) => { ids.push(trade.tradeId); acknowledge(); });
+    const close = openSocket('binance', ['BTC/USDT:USDT']);
+    try {
+      await settle();
+      expect(mockGapRecord).toHaveBeenCalledWith('binance', 'BTC/USDT:USDT', gap);
+      expect(ids).toEqual(['1', '5']);
+      expect(mockCheckpointSave.mock.calls.map(([saved]) => saved.id)).toEqual(['1', '5']);
     } finally { close(); }
   });
 });
