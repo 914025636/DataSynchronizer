@@ -17,7 +17,8 @@ const QUESTDB_PORT =
     ? DEFAULT_PORT_BY_PROTOCOL[QUESTDB_PROTOCOL] || DEFAULT_PORT_BY_PROTOCOL.tcp
     : parseInt(process.env.QUESTDB_PORT, 10);
 
-const configStr = `${QUESTDB_PROTOCOL}::addr=${QUESTDB_HOST}:${QUESTDB_PORT};auto_flush=off;`;
+const questdbMaxBufSize = Number(process.env.QUESTDB_MAX_BUFFER_SIZE || 524288000); // 500 MB default
+const configStr = `${QUESTDB_PROTOCOL}::addr=${QUESTDB_HOST}:${QUESTDB_PORT};auto_flush=off;max_buf_size=${questdbMaxBufSize};`;
 const schemaPromises = new Map<string, Promise<void>>();
 
 async function executeSchema(query: string): Promise<void> {
