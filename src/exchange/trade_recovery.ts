@@ -78,12 +78,14 @@ const toPage = (trades: ccxt.Trade[], lowerBound?: number): TradePage => {
 
 const covers = (page: TradePage, id: number): boolean => page.lowerBound <= id && id <= page.upperBound;
 
-// Retrying cannot fix missing credentials, unsupported endpoints or rejected parameters
+// Retrying cannot fix missing credentials, unsupported endpoints, rejected parameters, or rate limits
 const isPermanentError = (error: unknown): boolean =>
   error instanceof ccxt.AuthenticationError
   || error instanceof ccxt.NotSupported
   || error instanceof ccxt.BadRequest
-  || error instanceof ccxt.OperationRejected;
+  || error instanceof ccxt.OperationRejected
+  || error instanceof ccxt.DDoSProtection
+  || error instanceof ccxt.RateLimitExceeded;
 
 async function fetchHistoricalTrades(client: ccxt.Exchange, symbol: string, prefix: string, fromId: number): Promise<ccxt.Trade[]> {
   if (prefix === 'public' && !client.apiKey) {
@@ -109,7 +111,21 @@ export async function recoverBinanceTrades(
   const contract = symbol.includes(':');
   const prefix = contract ? 'fapiPublic' : 'public';
   const unresolved = (id: number): Error => new Error(`Binance trade gap unresolved: ${symbol} fromId=${id}`);
-  const latest = toPage(await client.fetchTrades(symbol, undefined, 1000, { fetchTradesMethod: `${prefix}GetTrades` }));
+  let latest: TradePage;
+  try {
+    latest = toPage(await client.fetchTrades(symbol, undefined, 1000, { fetchTradesMethod: `${prefix}GetTrades` }));
+  } catch (error) {
+    if (!isPermanentError(error)) throw error;
+    // Rate-limited or permanently failing; record the entire gap and bail out
+    await sink.gap({
+      fromId: previousId + 1,
+      toId: nextId - 1,
+      fromTimestamp: previous.timestamp,
+      toTimestamp: next.timestamp,
+      reason: (error as Error).message,
+    });
+    return;
+  }
   let cursor = previousId + 1;
   let lastTimestamp = previous.timestamp;
   let page = latest;
